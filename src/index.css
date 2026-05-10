@@ -1,5 +1,5 @@
 /* ─────────────────────────────────────────────────────
-   Iced Intentions — Global Styles
+   Iced Intentions — Global Styles (Mobile-first)
    ───────────────────────────────────────────────────── */
 
 * { box-sizing: border-box; }
@@ -12,28 +12,43 @@ html, body {
   font-family: 'Outfit', -apple-system, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden; /* Prevent any rogue horizontal scroll */
 }
 
-/* Animations */
+body {
+  min-height: 100vh;
+  min-height: 100dvh; /* iOS Safari proper viewport */
+}
+
+/* ─── ANIMATIONS ─────────────────────────────────── */
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
-
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
 
 .spin { animation: spin 1s linear infinite; }
 .fade-in { animation: fadeIn 0.5s ease-out; }
+.slide-up { animation: slideUp 0.3s ease-out; }
 
-/* Scrollbar styling */
+/* ─── SCROLLBARS ─────────────────────────────────── */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: #F0E2C9; }
 ::-webkit-scrollbar-thumb { background: #5C3A21; border-radius: 4px; }
 
-/* Form inputs */
+/* ─── FORM ELEMENTS ──────────────────────────────── */
+input, textarea, button, select {
+  font-family: inherit;
+  font-size: 16px; /* Prevents iOS zoom on focus */
+}
+
 input::placeholder, textarea::placeholder {
   color: rgba(92, 58, 33, 0.5);
   font-style: italic;
@@ -41,11 +56,23 @@ input::placeholder, textarea::placeholder {
 
 input[type="date"], input[type="time"] {
   font-family: 'Cormorant Garamond', serif;
+  min-height: 44px; /* iOS tap target minimum */
 }
 
-button { font-family: inherit; }
+/* All buttons get proper tap targets */
+button {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation; /* Faster tap response on mobile */
+}
 
-/* ─── RESPONSIVE GRIDS ─────────────────────────────── */
+/* Tap targets are 44px+ by default on small interactive elements */
+@media (max-width: 768px) {
+  button:not([data-compact]) {
+    min-height: 44px;
+  }
+}
+
+/* ─── RESPONSIVE GRIDS (Mobile-first) ─────────────── */
 
 .grid-2-md {
   display: grid;
@@ -68,41 +95,42 @@ button { font-family: inherit; }
 .grid-4-md {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 24px;
+  gap: 20px;
 }
-@media (min-width: 640px) {
-  .grid-4-md { grid-template-columns: 1fr 1fr; }
+@media (min-width: 480px) {
+  .grid-4-md { grid-template-columns: 1fr 1fr; gap: 16px; }
 }
 @media (min-width: 768px) {
-  .grid-4-md { grid-template-columns: repeat(4, 1fr); gap: 28px; }
+  .grid-4-md { grid-template-columns: repeat(4, 1fr); gap: 24px; }
 }
 
 .grid-2-sm {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 16px;
+  gap: 14px;
 }
 @media (min-width: 640px) {
-  .grid-2-sm { grid-template-columns: 1fr 1fr; gap: 20px; }
+  .grid-2-sm { grid-template-columns: 1fr 1fr; gap: 18px; }
 }
 
 .grid-2-form {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 16px;
+  gap: 14px;
 }
-@media (min-width: 768px) {
-  .grid-2-form { grid-template-columns: 1fr 1fr; }
+@media (min-width: 640px) {
+  .grid-2-form { grid-template-columns: 1fr 1fr; gap: 16px; }
 }
 
 .order-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 40px;
+  gap: 32px;
 }
 @media (min-width: 1024px) {
   .order-grid {
-    grid-template-columns: 1fr 400px;
+    grid-template-columns: 1fr 380px;
+    gap: 40px;
     align-items: start;
   }
   .cart-sticky { position: sticky; top: 90px; }
@@ -111,11 +139,106 @@ button { font-family: inherit; }
 /* ─── NAV RESPONSIVE ──────────────────────────────── */
 .nav-desktop { display: none; }
 .nav-cart-desktop { display: none; }
-.nav-mobile-toggle { display: flex; }
+.nav-mobile-controls { display: flex; align-items: center; gap: 6px; }
 
 @media (min-width: 768px) {
   .nav-desktop { display: flex; }
   .nav-cart-desktop { display: flex; }
-  .nav-mobile-toggle { display: none; }
+  .nav-mobile-controls { display: none !important; }
   .nav-mobile-menu { display: none !important; }
 }
+
+/* ─── MOBILE STICKY CART BAR ──────────────────────── */
+/* Floats at bottom of viewport on the order page when items in cart */
+.mobile-cart-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #2A1810;
+  color: #FAF1E4;
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  z-index: 60;
+  box-shadow: 0 -4px 20px rgba(42, 24, 16, 0.2);
+  animation: slideUp 0.3s ease-out;
+  padding-bottom: calc(14px + env(safe-area-inset-bottom));
+}
+@media (min-width: 1024px) {
+  .mobile-cart-bar { display: none !important; }
+}
+
+/* Hide the inline cart on the order page on mobile (we use the floating bar instead) */
+@media (max-width: 1023px) {
+  .cart-sticky { display: none !important; }
+  /* Add bottom padding to order page so the floating cart bar doesn't cover content */
+  .order-page-has-cart { padding-bottom: 100px !important; }
+}
+
+/* ─── MODAL RESPONSIVE ─────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(42, 24, 16, 0.6);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 16px;
+}
+
+.modal-content {
+  background: #FAF1E4;
+  border-radius: 6px;
+  max-width: 560px;
+  width: 100%;
+  max-height: 95vh;
+  max-height: 95dvh;
+  overflow-y: auto;
+  position: relative;
+}
+
+@media (max-width: 480px) {
+  .modal-overlay { padding: 0; align-items: flex-end; }
+  .modal-content {
+    max-height: 92dvh;
+    max-height: 92vh;
+    border-radius: 16px 16px 0 0;
+    animation: slideUp 0.3s ease-out;
+  }
+}
+
+/* ─── SECTION PADDING (less on mobile) ─────────────── */
+.section-pad {
+  padding: 60px 20px;
+}
+@media (min-width: 768px) {
+  .section-pad { padding: 100px 24px; }
+}
+
+.section-pad-sm {
+  padding: 48px 20px;
+}
+@media (min-width: 768px) {
+  .section-pad-sm { padding: 80px 24px; }
+}
+
+/* ─── HORIZONTAL SCROLLERS (date/category pickers) ─── */
+.h-scroll {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+}
+.h-scroll > * {
+  flex-shrink: 0;
+  scroll-snap-align: start;
+}
+.h-scroll::-webkit-scrollbar { height: 4px; }
