@@ -115,11 +115,11 @@ button {
 
 .grid-2-form {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 14px;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
 }
 @media (min-width: 640px) {
-  .grid-2-form { grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-2-form { gap: 16px; }
 }
 
 .order-grid {
@@ -236,9 +236,29 @@ button {
   padding-bottom: 4px;
   scroll-snap-type: x proximity;
   -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 .h-scroll > * {
   flex-shrink: 0;
   scroll-snap-align: start;
 }
-.h-scroll::-webkit-scrollbar { height: 4px; }
+.h-scroll::-webkit-scrollbar { display: none; }
+
+/* Fade indicator wrapper — apply class to a parent div */
+.h-scroll-fade {
+  position: relative;
+}
+.h-scroll-fade::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 32px;
+  background: linear-gradient(to right, transparent, #FAF1E4 80%);
+  pointer-events: none;
+}
+.h-scroll-fade.on-white::after {
+  background: linear-gradient(to right, transparent, #FFFEFA 80%);
+}
