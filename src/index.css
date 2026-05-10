@@ -1,0 +1,121 @@
+/* ─────────────────────────────────────────────────────
+   Iced Intentions — Global Styles
+   ───────────────────────────────────────────────────── */
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #FAF1E4;
+  color: #2A1810;
+  font-family: 'Outfit', -apple-system, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Animations */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.spin { animation: spin 1s linear infinite; }
+.fade-in { animation: fadeIn 0.5s ease-out; }
+
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: #F0E2C9; }
+::-webkit-scrollbar-thumb { background: #5C3A21; border-radius: 4px; }
+
+/* Form inputs */
+input::placeholder, textarea::placeholder {
+  color: rgba(92, 58, 33, 0.5);
+  font-style: italic;
+}
+
+input[type="date"], input[type="time"] {
+  font-family: 'Cormorant Garamond', serif;
+}
+
+button { font-family: inherit; }
+
+/* ─── RESPONSIVE GRIDS ─────────────────────────────── */
+
+.grid-2-md {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 32px;
+}
+@media (min-width: 768px) {
+  .grid-2-md { grid-template-columns: 1fr 1fr; gap: 48px; }
+}
+
+.grid-3-md {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 32px;
+}
+@media (min-width: 768px) {
+  .grid-3-md { grid-template-columns: repeat(3, 1fr); gap: 24px; }
+}
+
+.grid-4-md {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 24px;
+}
+@media (min-width: 640px) {
+  .grid-4-md { grid-template-columns: 1fr 1fr; }
+}
+@media (min-width: 768px) {
+  .grid-4-md { grid-template-columns: repeat(4, 1fr); gap: 28px; }
+}
+
+.grid-2-sm {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+@media (min-width: 640px) {
+  .grid-2-sm { grid-template-columns: 1fr 1fr; gap: 20px; }
+}
+
+.grid-2-form {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+@media (min-width: 768px) {
+  .grid-2-form { grid-template-columns: 1fr 1fr; }
+}
+
+.order-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 40px;
+}
+@media (min-width: 1024px) {
+  .order-grid {
+    grid-template-columns: 1fr 400px;
+    align-items: start;
+  }
+  .cart-sticky { position: sticky; top: 90px; }
+}
+
+/* ─── NAV RESPONSIVE ──────────────────────────────── */
+.nav-desktop { display: none; }
+.nav-cart-desktop { display: none; }
+.nav-mobile-toggle { display: flex; }
+
+@media (min-width: 768px) {
+  .nav-desktop { display: flex; }
+  .nav-cart-desktop { display: flex; }
+  .nav-mobile-toggle { display: none; }
+  .nav-mobile-menu { display: none !important; }
+}
