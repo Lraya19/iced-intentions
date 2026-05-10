@@ -145,7 +145,7 @@ const Ornament = ({ width = 200, color = '#5C3A21' }) => (
 );
 
 const DrinkVisual = ({ gradient, size = 'md' }) => {
-  const dims = size === 'sm' ? { w: 80, h: 130 } : size === 'lg' ? { w: 180, h: 280 } : { w: 130, h: 200 };
+  const dims = size === 'xs' ? { w: 56, h: 90 } : size === 'sm' ? { w: 80, h: 130 } : size === 'lg' ? { w: 180, h: 280 } : { w: 130, h: 200 };
   return (
     <div style={{ position: 'relative', width: dims.w, height: dims.h, display: 'inline-block' }}>
       <div
@@ -533,13 +533,13 @@ const HomePage = ({ setPage }) => {
 // ═══════════════════════════════════════════════════════
 const CheckoutInput = ({ label, value, onChange, placeholder, type = 'text' }) => (
   <div>
-    <label style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.2em', textTransform: 'uppercase', color: '#5C3A21', display: 'block', marginBottom: '6px' }}>{label}</label>
+    <label style={{ fontFamily: '"Outfit", sans-serif', fontSize: '10px', letterSpacing: '0.18em', textTransform: 'uppercase', color: '#5C3A21', display: 'block', marginBottom: '4px' }}>{label}</label>
     <input
       type={type}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      style={{ width: '100%', padding: '12px 14px', borderRadius: '4px', border: '1.5px solid rgba(92, 58, 33, 0.2)', background: '#FAF1E4', fontFamily: '"Cormorant Garamond", serif', fontSize: '16px', color: '#2A1810', outline: 'none' }}
+      style={{ width: '100%', padding: '10px 12px', borderRadius: '4px', border: '1.5px solid rgba(92, 58, 33, 0.2)', background: '#FAF1E4', fontFamily: '"Cormorant Garamond", serif', fontSize: '16px', color: '#2A1810', outline: 'none', height: '44px', boxSizing: 'border-box' }}
       onFocus={(e) => e.target.style.borderColor = '#E8A4B8'}
       onBlur={(e) => e.target.style.borderColor = 'rgba(92, 58, 33, 0.2)'}
     />
@@ -721,15 +721,17 @@ const CheckoutFlow = ({ cart, cartTotal, onBack, onComplete }) => {
             <Calendar size={18} color="#2A1810" />
             <h3 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '20px', color: '#2A1810', margin: 0, fontWeight: 500 }}>Pickup Date</h3>
           </div>
-          <div className="h-scroll">
-            {days.map(d => (
-              <button key={d.iso} onClick={() => { setSelectedDate(d.iso); setSelectedTime(null); }}
-                style={{ padding: '12px 16px', borderRadius: '4px', border: `1.5px solid ${selectedDate === d.iso ? '#2A1810' : 'rgba(92, 58, 33, 0.15)'}`, background: selectedDate === d.iso ? '#2A1810' : 'transparent', color: selectedDate === d.iso ? '#FAF1E4' : '#2A1810', cursor: 'pointer', textAlign: 'center', minWidth: '68px', transition: 'all 0.2s' }}>
-                <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '10px', letterSpacing: '0.2em', textTransform: 'uppercase', opacity: 0.8 }}>{d.day}</div>
-                <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '22px', fontWeight: 600, lineHeight: 1, marginTop: '4px' }}>{d.date}</div>
-                <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '10px', marginTop: '4px', opacity: 0.7 }}>{d.month}{d.isToday ? ' · Today' : ''}</div>
-              </button>
-            ))}
+          <div className="h-scroll-fade on-white">
+            <div className="h-scroll">
+              {days.map(d => (
+                <button key={d.iso} onClick={() => { setSelectedDate(d.iso); setSelectedTime(null); }}
+                  style={{ padding: '10px 14px', borderRadius: '4px', border: `1.5px solid ${selectedDate === d.iso ? '#2A1810' : 'rgba(92, 58, 33, 0.15)'}`, background: selectedDate === d.iso ? '#2A1810' : 'transparent', color: selectedDate === d.iso ? '#FAF1E4' : '#2A1810', cursor: 'pointer', textAlign: 'center', minWidth: '64px', transition: 'all 0.2s' }}>
+                  <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '9px', letterSpacing: '0.18em', textTransform: 'uppercase', opacity: 0.8 }}>{d.day}</div>
+                  <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '20px', fontWeight: 600, lineHeight: 1, marginTop: '4px' }}>{d.date}</div>
+                  <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '9px', marginTop: '4px', opacity: 0.7 }}>{d.month}{d.isToday ? ' · Today' : ''}</div>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -891,32 +893,34 @@ const OrderPage = ({ cart, setCart }) => {
 
   return (
     <div className={cart.length > 0 ? 'order-page-has-cart' : ''} style={{ background: '#FAF1E4', minHeight: '100vh' }}>
-      <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '40px 20px' }}>
-        <div style={{ textAlign: 'center', marginBottom: '36px' }}>
+      <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '28px 20px 40px 20px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
           <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.3em', textTransform: 'uppercase', color: '#5C3A21' }}>Order Online</span>
-          <h1 style={{ fontFamily: '"Pinyon Script", cursive', fontSize: 'clamp(48px, 11vw, 96px)', color: '#2A1810', margin: '8px 0 4px 0', fontWeight: 400, lineHeight: 1 }}>
+          <h1 style={{ fontFamily: '"Pinyon Script", cursive', fontSize: 'clamp(44px, 11vw, 96px)', color: '#2A1810', margin: '4px 0 0 0', fontWeight: 400, lineHeight: 1 }}>
             Build your sip
           </h1>
-          <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: 'clamp(15px, 3.5vw, 18px)', color: '#5C3A21', marginTop: '12px' }}>
+          <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: 'clamp(14px, 3.5vw, 18px)', color: '#5C3A21', margin: '8px 0 0 0' }}>
             Choose your drink, customize, pick your pickup time.
           </p>
         </div>
 
         <div className="order-grid">
           <div>
-            <div className="h-scroll" style={{ marginBottom: '24px' }}>
-              {Object.entries(MENU).map(([key, cat]) => (
-                <button key={key} onClick={() => setActiveCategory(key)}
-                  style={{ padding: '10px 18px', borderRadius: '999px', border: '1.5px solid #2A1810', background: activeCategory === key ? '#2A1810' : 'transparent', color: activeCategory === key ? '#FAF1E4' : '#2A1810', fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.2s' }}>
-                  {cat.title}
-                </button>
-              ))}
+            <div className="h-scroll-fade" style={{ marginBottom: '20px' }}>
+              <div className="h-scroll">
+                {Object.entries(MENU).map(([key, cat]) => (
+                  <button key={key} onClick={() => setActiveCategory(key)}
+                    style={{ padding: '10px 18px', borderRadius: '999px', border: '1.5px solid #2A1810', background: activeCategory === key ? '#2A1810' : 'transparent', color: activeCategory === key ? '#FAF1E4' : '#2A1810', fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.2s' }}>
+                    {cat.title}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="grid-2-sm">
               {MENU[activeCategory].items.map(drink => (
                 <button key={drink.id} onClick={() => setSelectedDrink(drink)}
-                  style={{ background: '#FFFEFA', border: '1px solid rgba(92, 58, 33, 0.1)', borderRadius: '4px', padding: '18px', textAlign: 'left', cursor: 'pointer', display: 'flex', gap: '16px', alignItems: 'center', transition: 'all 0.3s', boxShadow: '0 1px 3px rgba(42, 24, 16, 0.04)' }}
+                  style={{ background: '#FFFEFA', border: '1px solid rgba(92, 58, 33, 0.1)', borderRadius: '6px', padding: '14px', textAlign: 'left', cursor: 'pointer', display: 'flex', gap: '12px', alignItems: 'center', transition: 'all 0.3s', boxShadow: '0 1px 3px rgba(42, 24, 16, 0.04)', width: '100%' }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.borderColor = '#E8A4B8';
                     e.currentTarget.style.boxShadow = '0 8px 24px rgba(42, 24, 16, 0.1)';
@@ -926,18 +930,17 @@ const OrderPage = ({ cart, setCart }) => {
                     e.currentTarget.style.boxShadow = '0 1px 3px rgba(42, 24, 16, 0.04)';
                   }}>
                   <div style={{ flexShrink: 0 }}>
-                    <DrinkVisual gradient={drink.gradient} size="sm" />
+                    <DrinkVisual gradient={drink.gradient} size="xs" />
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <h3 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '20px', color: '#2A1810', margin: '0 0 6px 0', fontWeight: 500, fontStyle: 'italic' }}>{drink.name}</h3>
-                    <p style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', color: '#5C3A21', lineHeight: 1.5, margin: '0 0 10px 0' }}>{drink.desc}</p>
-                    <div style={{ display: 'flex', gap: '12px', alignItems: 'baseline', flexWrap: 'wrap' }}>
-                      <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '16px', color: '#2A1810', fontWeight: 600 }}>${drink.priceL.toFixed(2)}</span>
-                      <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '10px', color: '#5C3A21', letterSpacing: '0.1em' }}>L</span>
+                  <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+                    <h3 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '18px', color: '#2A1810', margin: '0 0 4px 0', fontWeight: 500, fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{drink.name}</h3>
+                    <p style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', color: '#5C3A21', lineHeight: 1.4, margin: '0 0 8px 0', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{drink.desc}</p>
+                    <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '14px', color: '#2A1810', fontWeight: 600, display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'baseline' }}>
+                      <span>${drink.priceL.toFixed(2)} <span style={{ fontSize: '10px', fontFamily: '"Outfit", sans-serif', fontWeight: 400, color: '#5C3A21', letterSpacing: '0.08em', textTransform: 'uppercase' }}>L</span></span>
                       {drink.priceBucket !== drink.priceL && (
                         <>
-                          <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '16px', color: '#2A1810', fontWeight: 600, marginLeft: '8px' }}>${drink.priceBucket.toFixed(2)}</span>
-                          <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '10px', color: '#5C3A21', letterSpacing: '0.1em' }}>BUCKET</span>
+                          <span style={{ color: 'rgba(92, 58, 33, 0.3)' }}>·</span>
+                          <span>${drink.priceBucket.toFixed(2)} <span style={{ fontSize: '10px', fontFamily: '"Outfit", sans-serif', fontWeight: 400, color: '#5C3A21', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Bucket</span></span>
                         </>
                       )}
                     </div>
@@ -1113,93 +1116,93 @@ const EventsPage = () => {
 
   return (
     <div style={{ background: '#FAF1E4', minHeight: '100vh' }}>
-      <section style={{ padding: '60px 20px 48px 20px', textAlign: 'center', background: 'radial-gradient(ellipse at center, rgba(232, 164, 184, 0.12), transparent 70%)' }}>
+      <section style={{ padding: '40px 20px 32px 20px', textAlign: 'center', background: 'radial-gradient(ellipse at center, rgba(232, 164, 184, 0.12), transparent 70%)' }}>
         <div style={{ maxWidth: '800px', margin: '0 auto' }}>
           <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.3em', textTransform: 'uppercase', color: '#5C3A21' }}>Events & Catering</span>
-          <h1 style={{ fontFamily: '"Pinyon Script", cursive', fontSize: 'clamp(48px, 12vw, 112px)', color: '#2A1810', margin: '10px 0 0 0', fontWeight: 400, lineHeight: 0.95 }}>
+          <h1 style={{ fontFamily: '"Pinyon Script", cursive', fontSize: 'clamp(44px, 11vw, 112px)', color: '#2A1810', margin: '8px 0 0 0', fontWeight: 400, lineHeight: 0.95 }}>
             Bring us to your<br />special day
           </h1>
-          <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: 'clamp(16px, 4vw, 22px)', color: '#5C3A21', maxWidth: '580px', margin: '24px auto 0 auto', lineHeight: 1.6 }}>
-            Custom drink bars, monogrammed cups, and that signature soft top — for the moments that matter most.
+          <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: 'clamp(15px, 3.8vw, 22px)', color: '#5C3A21', maxWidth: '580px', margin: '16px auto 0 auto', lineHeight: 1.5 }}>
+            Custom drink bars, monogrammed cups, and that signature soft top.
           </p>
         </div>
       </section>
 
       <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0 20px 60px 20px' }}>
-        <div className="grid-2-sm" style={{ marginBottom: '32px' }}>
+        <div className="grid-2-sm" style={{ marginBottom: '20px' }}>
           {eventTypes.map(et => {
             const Icon = et.icon;
             const selected = eventType === et.id;
             return (
               <button key={et.id} onClick={() => setEventType(et.id)}
-                style={{ background: selected ? '#2A1810' : '#FFFEFA', color: selected ? '#FAF1E4' : '#2A1810', border: `1.5px solid ${selected ? '#2A1810' : 'rgba(92, 58, 33, 0.12)'}`, borderRadius: '4px', padding: '18px', textAlign: 'left', cursor: 'pointer', display: 'flex', gap: '14px', alignItems: 'flex-start', transition: 'all 0.3s' }}>
-                <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: selected ? '#E8A4B8' : '#F0E2C9', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <Icon size={18} color={selected ? '#FFFEFA' : '#2A1810'} />
+                style={{ background: selected ? '#2A1810' : '#FFFEFA', color: selected ? '#FAF1E4' : '#2A1810', border: `1.5px solid ${selected ? '#2A1810' : 'rgba(92, 58, 33, 0.12)'}`, borderRadius: '6px', padding: '14px', textAlign: 'left', cursor: 'pointer', display: 'flex', gap: '12px', alignItems: 'center', transition: 'all 0.3s' }}>
+                <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: selected ? '#E8A4B8' : '#F0E2C9', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Icon size={16} color={selected ? '#FFFEFA' : '#2A1810'} />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '4px', gap: '8px', flexWrap: 'wrap' }}>
-                    <h3 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '19px', margin: 0, fontWeight: 500, fontStyle: 'italic' }}>{et.label}</h3>
-                    <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', opacity: 0.8, whiteSpace: 'nowrap' }}>from ${et.from}</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '6px', flexWrap: 'wrap' }}>
+                    <h3 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '17px', margin: 0, fontWeight: 500, fontStyle: 'italic' }}>{et.label}</h3>
+                    <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '10px', opacity: 0.8, whiteSpace: 'nowrap', letterSpacing: '0.05em' }}>from ${et.from}</span>
                   </div>
-                  <p style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', margin: 0, lineHeight: 1.5, opacity: 0.85 }}>{et.desc}</p>
+                  <p style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', margin: '2px 0 0 0', lineHeight: 1.4, opacity: 0.85 }}>{et.desc}</p>
                 </div>
               </button>
             );
           })}
         </div>
 
-        <div style={{ background: '#FFFEFA', padding: '24px 20px', borderRadius: '4px', border: '1px solid rgba(92, 58, 33, 0.1)' }}>
-          <h2 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '24px', color: '#2A1810', margin: '0 0 20px 0', fontWeight: 500 }}>Tell us about your event</h2>
+        <div style={{ background: '#FFFEFA', padding: '20px 16px', borderRadius: '6px', border: '1px solid rgba(92, 58, 33, 0.1)' }}>
+          <h2 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '22px', color: '#2A1810', margin: '0 0 16px 0', fontWeight: 500 }}>Tell us about your event</h2>
 
-          <div className="grid-2-form" style={{ marginBottom: '16px' }}>
+          <div className="grid-2-form" style={{ marginBottom: '12px' }}>
             <CheckoutInput label="Event Date *" value={date} onChange={setDate} type="date" />
             <CheckoutInput label="Start Time *" value={time} onChange={setTime} type="time" />
-            <CheckoutInput label="Duration (hours)" value={duration} onChange={setDuration} placeholder="2" />
-            <CheckoutInput label="Estimated Guests" value={guests} onChange={setGuests} placeholder="50" />
+            <CheckoutInput label="Duration (hrs)" value={duration} onChange={setDuration} placeholder="2" />
+            <CheckoutInput label="Est. Guests" value={guests} onChange={setGuests} placeholder="50" />
           </div>
 
           {date && bookedDates[date] && (
-            <div style={{ background: 'rgba(232, 85, 122, 0.1)', border: '1px solid rgba(232, 85, 122, 0.3)', padding: '12px', borderRadius: '4px', marginBottom: '16px', fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '14px', color: '#A83A56' }}>
+            <div style={{ background: 'rgba(232, 85, 122, 0.1)', border: '1px solid rgba(232, 85, 122, 0.3)', padding: '10px 12px', borderRadius: '4px', marginBottom: '12px', fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '13px', color: '#A83A56' }}>
               That date is already booked. Please choose another.
             </div>
           )}
 
-          <div className="grid-2-form" style={{ marginBottom: '16px' }}>
+          <div className="grid-2-form" style={{ marginBottom: '12px' }}>
             <CheckoutInput label="Your Name *" value={info.name} onChange={(v) => setInfo({ ...info, name: v })} />
             <CheckoutInput label="Phone *" value={info.phone} onChange={(v) => setInfo({ ...info, phone: v })} />
           </div>
 
-          <div style={{ marginBottom: '16px' }}>
+          <div style={{ marginBottom: '12px' }}>
             <CheckoutInput label="Email *" value={info.email} onChange={(v) => setInfo({ ...info, email: v })} type="email" />
           </div>
 
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.2em', textTransform: 'uppercase', color: '#5C3A21', display: 'block', marginBottom: '6px' }}>Event Details</label>
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ fontFamily: '"Outfit", sans-serif', fontSize: '10px', letterSpacing: '0.18em', textTransform: 'uppercase', color: '#5C3A21', display: 'block', marginBottom: '4px' }}>Event Details</label>
             <textarea value={info.notes} onChange={(e) => setInfo({ ...info, notes: e.target.value })}
-              placeholder="Tell us about your vision — themes, custom flavors, monogram requests, anything we should know..." rows={4}
-              style={{ width: '100%', padding: '12px 14px', borderRadius: '4px', border: '1.5px solid rgba(92, 58, 33, 0.2)', background: '#FAF1E4', fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '15px', color: '#2A1810', outline: 'none', resize: 'vertical' }} />
+              placeholder="Themes, custom flavors, monogram requests..." rows={3}
+              style={{ width: '100%', padding: '10px 12px', borderRadius: '4px', border: '1.5px solid rgba(92, 58, 33, 0.2)', background: '#FAF1E4', fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '15px', color: '#2A1810', outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />
           </div>
 
           {error && (
-            <div style={{ background: 'rgba(232, 85, 122, 0.1)', border: '1px solid rgba(232, 85, 122, 0.3)', padding: '12px', borderRadius: '4px', marginBottom: '16px', fontFamily: '"Outfit", sans-serif', fontSize: '13px', color: '#A83A56' }}>
+            <div style={{ background: 'rgba(232, 85, 122, 0.1)', border: '1px solid rgba(232, 85, 122, 0.3)', padding: '10px 12px', borderRadius: '4px', marginBottom: '12px', fontFamily: '"Outfit", sans-serif', fontSize: '13px', color: '#A83A56' }}>
               {error}
             </div>
           )}
 
           <button onClick={handleSubmit} disabled={submitting}
-            style={{ width: '100%', background: submitting ? '#5C3A21' : '#2A1810', color: '#FAF1E4', padding: '16px', border: 'none', borderRadius: '999px', fontFamily: '"Outfit", sans-serif', fontSize: '13px', letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, cursor: submitting ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+            style={{ width: '100%', background: submitting ? '#5C3A21' : '#2A1810', color: '#FAF1E4', padding: '14px', border: 'none', borderRadius: '999px', fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, cursor: submitting ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
             {submitting ? <><Loader2 size={16} className="spin" /> Sending...</> : <>Submit Inquiry <Sparkles size={14} /></>}
           </button>
         </div>
 
-        <div className="grid-3-md" style={{ marginTop: '48px' }}>
+        <div className="grid-3-md" style={{ marginTop: '40px' }}>
           {[
             { title: 'Custom Drink Menu', desc: 'We curate a signature menu around your theme, dietary needs, and color palette.' },
             { title: 'Monogrammed Cups', desc: 'Your initials, names, or hashtag printed on each soft-top cup. A keepsake guests adore.' },
             { title: 'On-Site Service', desc: 'Two artisans, all equipment, setup, and cleanup. You don\'t lift a finger.' },
           ].map(f => (
             <div key={f.title}>
-              <h4 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '20px', color: '#2A1810', margin: '0 0 8px 0', fontWeight: 500, fontStyle: 'italic' }}>{f.title}</h4>
+              <h4 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '19px', color: '#2A1810', margin: '0 0 6px 0', fontWeight: 500, fontStyle: 'italic' }}>{f.title}</h4>
               <p style={{ fontFamily: '"Outfit", sans-serif', fontSize: '13px', color: '#5C3A21', lineHeight: 1.6, margin: 0 }}>{f.desc}</p>
             </div>
           ))}
