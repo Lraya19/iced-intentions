@@ -542,14 +542,14 @@ const HomePage = ({ setPage }) => {
 // CHECKOUT INPUT
 // ═══════════════════════════════════════════════════════
 const CheckoutInput = ({ label, value, onChange, placeholder, type = 'text' }) => (
-  <div>
+  <div style={{ minWidth: 0, maxWidth: '100%' }}>
     <label style={{ fontFamily: '"Outfit", sans-serif', fontSize: '10px', letterSpacing: '0.18em', textTransform: 'uppercase', color: '#5C3A21', display: 'block', marginBottom: '4px' }}>{label}</label>
     <input
       type={type}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
-      style={{ width: '100%', padding: '10px 12px', borderRadius: '4px', border: '1.5px solid rgba(92, 58, 33, 0.2)', background: '#FAF1E4', fontFamily: '"Cormorant Garamond", serif', fontSize: '16px', color: '#2A1810', outline: 'none', height: '44px', boxSizing: 'border-box' }}
+      style={{ width: '100%', maxWidth: '100%', minWidth: 0, padding: '10px 12px', borderRadius: '4px', border: '1.5px solid rgba(92, 58, 33, 0.2)', background: '#FAF1E4', fontFamily: '"Cormorant Garamond", serif', fontSize: '16px', color: '#2A1810', outline: 'none', height: '44px', boxSizing: 'border-box', display: 'block' }}
       onFocus={(e) => e.target.style.borderColor = '#E8A4B8'}
       onBlur={(e) => e.target.style.borderColor = 'rgba(92, 58, 33, 0.2)'}
     />
@@ -745,8 +745,8 @@ const CheckoutFlow = ({ cart, cartTotal, onBack, onComplete }) => {
   };
 
   return (
-    <div style={{ background: '#FAF1E4', minHeight: '100vh' }}>
-      <div style={{ maxWidth: '900px', margin: '0 auto', padding: '24px 20px 60px 20px' }}>
+    <div style={{ background: '#FAF1E4', minHeight: '100vh', overflowX: 'hidden', maxWidth: '100%' }}>
+      <div style={{ maxWidth: '900px', margin: '0 auto', padding: '24px 20px 60px 20px', width: '100%' }}>
         <button onClick={onBack} data-compact style={{ background: 'none', border: 'none', color: '#5C3A21', fontFamily: '"Outfit", sans-serif', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '20px', padding: '8px 0' }}>
           <ChevronLeft size={16} /> Back to menu
         </button>
@@ -945,8 +945,8 @@ const OrderPage = ({ cart, setCart }) => {
   }
 
   return (
-    <div className={cart.length > 0 ? 'order-page-has-cart' : ''} style={{ background: '#FAF1E4', minHeight: '100vh' }}>
-      <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '28px 20px 40px 20px' }}>
+    <div className={cart.length > 0 ? 'order-page-has-cart' : ''} style={{ background: '#FAF1E4', minHeight: '100vh', overflowX: 'hidden', maxWidth: '100%' }}>
+      <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '28px 20px 40px 20px', width: '100%' }}>
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
           <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.3em', textTransform: 'uppercase', color: '#5C3A21' }}>Order Online</span>
           <h1 style={{ fontFamily: '"Pinyon Script", cursive', fontSize: 'clamp(38px, 10vw, 96px)', color: '#2A1810', margin: '4px 0 0 0', fontWeight: 400, lineHeight: 1 }}>
@@ -973,7 +973,7 @@ const OrderPage = ({ cart, setCart }) => {
             <div className="grid-2-sm">
               {MENU[activeCategory].items.map(drink => (
                 <button key={drink.id} onClick={() => setSelectedDrink(drink)}
-                  style={{ background: '#FFFEFA', border: '1px solid rgba(92, 58, 33, 0.1)', borderRadius: '6px', padding: '14px', textAlign: 'left', cursor: 'pointer', display: 'flex', gap: '12px', alignItems: 'center', transition: 'all 0.3s', boxShadow: '0 1px 3px rgba(42, 24, 16, 0.04)', width: '100%' }}
+                  style={{ background: '#FFFEFA', border: '1px solid rgba(92, 58, 33, 0.1)', borderRadius: '6px', padding: '14px', textAlign: 'left', cursor: 'pointer', display: 'flex', gap: '12px', alignItems: 'center', transition: 'all 0.3s', boxShadow: '0 1px 3px rgba(42, 24, 16, 0.04)', width: '100%', maxWidth: '100%', minWidth: 0, overflow: 'hidden', whiteSpace: 'normal' }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.borderColor = '#E8A4B8';
                     e.currentTarget.style.boxShadow = '0 8px 24px rgba(42, 24, 16, 0.1)';
@@ -985,9 +985,9 @@ const OrderPage = ({ cart, setCart }) => {
                   <div style={{ flexShrink: 0 }}>
                     <DrinkVisual gradient={drink.gradient} size="xs" />
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
                     <h3 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '18px', color: '#2A1810', margin: '0 0 4px 0', fontWeight: 500, fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{drink.name}</h3>
-                    <p style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', color: '#5C3A21', lineHeight: 1.4, margin: '0 0 8px 0', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', whiteSpace: 'normal', wordBreak: 'break-word' }}>{drink.desc}</p>
+                    <p style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', color: '#5C3A21', lineHeight: 1.4, margin: '0 0 8px 0', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'break-word' }}>{drink.desc}</p>
                     <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '14px', color: '#2A1810', fontWeight: 600, display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'baseline' }}>
                       <span>${drink.priceL.toFixed(2)} <span style={{ fontSize: '10px', fontFamily: '"Outfit", sans-serif', fontWeight: 400, color: '#5C3A21', letterSpacing: '0.08em', textTransform: 'uppercase' }}>L</span></span>
                       {drink.priceBucket !== drink.priceL && (
@@ -1168,7 +1168,7 @@ const EventsPage = () => {
   }
 
   return (
-    <div style={{ background: '#FAF1E4', minHeight: '100vh' }}>
+    <div style={{ background: '#FAF1E4', minHeight: '100vh', overflowX: 'hidden', maxWidth: '100%' }}>
       <section style={{ padding: '40px 20px 32px 20px', textAlign: 'center', background: 'radial-gradient(ellipse at center, rgba(232, 164, 184, 0.12), transparent 70%)' }}>
         <div style={{ maxWidth: '800px', margin: '0 auto' }}>
           <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.3em', textTransform: 'uppercase', color: '#5C3A21' }}>Events & Catering</span>
@@ -1204,7 +1204,7 @@ const EventsPage = () => {
           })}
         </div>
 
-        <div style={{ background: '#FFFEFA', padding: '20px 16px', borderRadius: '6px', border: '1px solid rgba(92, 58, 33, 0.1)' }}>
+        <div style={{ background: '#FFFEFA', padding: '20px 16px', borderRadius: '6px', border: '1px solid rgba(92, 58, 33, 0.1)', width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
           <h2 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '22px', color: '#2A1810', margin: '0 0 16px 0', fontWeight: 500 }}>Tell us about your event</h2>
 
           <div style={{ marginBottom: '12px' }}>
@@ -1328,7 +1328,7 @@ export default function App() {
   const cartCount = cart.reduce((s, i) => s + i.qty, 0);
 
   return (
-    <div style={{ background: '#FAF1E4', minHeight: '100vh' }}>
+    <div style={{ background: '#FAF1E4', minHeight: '100vh', overflowX: 'hidden', maxWidth: '100%' }}>
       <Nav page={page} setPage={setPage} cartCount={cartCount} />
       <div className="fade-in" key={page}>
         {page === 'home' && <HomePage setPage={setPage} />}
