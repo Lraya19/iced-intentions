@@ -63,6 +63,9 @@ input[type="date"], input[type="time"] {
 button {
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation; /* Faster tap response on mobile */
+  white-space: normal; /* Override browser default that prevents text wrapping in buttons */
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 /* Tap targets are 44px+ by default on small interactive elements */
