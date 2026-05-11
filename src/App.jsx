@@ -327,7 +327,7 @@ const HomePage = ({ setPage }) => {
                 Coffee · Energy · More
               </span>
             </div>
-            <h1 style={{ fontFamily: '"Pinyon Script", cursive', fontSize: 'clamp(48px, 11vw, 128px)', lineHeight: 0.95, color: '#2A1810', margin: '0 0 8px 0', fontWeight: 400 }}>
+            <h1 style={{ fontFamily: '"Pinyon Script", cursive', fontSize: 'clamp(42px, 11vw, 128px)', lineHeight: 0.95, color: '#2A1810', margin: '0 0 8px 0', fontWeight: 400 }}>
               Iced<br />Intentions
             </h1>
             <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: 'clamp(16px, 4.5vw, 24px)', color: '#5C3A21', maxWidth: '480px', lineHeight: 1.5, margin: '20px 0 28px 0' }}>
@@ -949,7 +949,7 @@ const OrderPage = ({ cart, setCart }) => {
       <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '28px 20px 40px 20px' }}>
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
           <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.3em', textTransform: 'uppercase', color: '#5C3A21' }}>Order Online</span>
-          <h1 style={{ fontFamily: '"Pinyon Script", cursive', fontSize: 'clamp(44px, 11vw, 96px)', color: '#2A1810', margin: '4px 0 0 0', fontWeight: 400, lineHeight: 1 }}>
+          <h1 style={{ fontFamily: '"Pinyon Script", cursive', fontSize: 'clamp(38px, 10vw, 96px)', color: '#2A1810', margin: '4px 0 0 0', fontWeight: 400, lineHeight: 1 }}>
             Build your sip
           </h1>
           <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: 'clamp(14px, 3.5vw, 18px)', color: '#5C3A21', margin: '8px 0 0 0' }}>
@@ -985,9 +985,9 @@ const OrderPage = ({ cart, setCart }) => {
                   <div style={{ flexShrink: 0 }}>
                     <DrinkVisual gradient={drink.gradient} size="xs" />
                   </div>
-                  <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <h3 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '18px', color: '#2A1810', margin: '0 0 4px 0', fontWeight: 500, fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{drink.name}</h3>
-                    <p style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', color: '#5C3A21', lineHeight: 1.4, margin: '0 0 8px 0', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{drink.desc}</p>
+                    <p style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', color: '#5C3A21', lineHeight: 1.4, margin: '0 0 8px 0', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', whiteSpace: 'normal', wordBreak: 'break-word' }}>{drink.desc}</p>
                     <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '14px', color: '#2A1810', fontWeight: 600, display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'baseline' }}>
                       <span>${drink.priceL.toFixed(2)} <span style={{ fontSize: '10px', fontFamily: '"Outfit", sans-serif', fontWeight: 400, color: '#5C3A21', letterSpacing: '0.08em', textTransform: 'uppercase' }}>L</span></span>
                       {drink.priceBucket !== drink.priceL && (
@@ -1172,7 +1172,7 @@ const EventsPage = () => {
       <section style={{ padding: '40px 20px 32px 20px', textAlign: 'center', background: 'radial-gradient(ellipse at center, rgba(232, 164, 184, 0.12), transparent 70%)' }}>
         <div style={{ maxWidth: '800px', margin: '0 auto' }}>
           <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.3em', textTransform: 'uppercase', color: '#5C3A21' }}>Events & Catering</span>
-          <h1 style={{ fontFamily: '"Pinyon Script", cursive', fontSize: 'clamp(44px, 11vw, 112px)', color: '#2A1810', margin: '8px 0 0 0', fontWeight: 400, lineHeight: 0.95 }}>
+          <h1 style={{ fontFamily: '"Pinyon Script", cursive', fontSize: 'clamp(38px, 11vw, 112px)', color: '#2A1810', margin: '8px 0 0 0', fontWeight: 400, lineHeight: 0.95 }}>
             Bring us to your<br />special day
           </h1>
           <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: 'clamp(15px, 3.8vw, 22px)', color: '#5C3A21', maxWidth: '580px', margin: '16px auto 0 auto', lineHeight: 1.5 }}>
@@ -1207,9 +1207,13 @@ const EventsPage = () => {
         <div style={{ background: '#FFFEFA', padding: '20px 16px', borderRadius: '6px', border: '1px solid rgba(92, 58, 33, 0.1)' }}>
           <h2 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '22px', color: '#2A1810', margin: '0 0 16px 0', fontWeight: 500 }}>Tell us about your event</h2>
 
-          <div className="grid-2-form" style={{ marginBottom: '12px' }}>
+          <div style={{ marginBottom: '12px' }}>
             <CheckoutInput label="Event Date *" value={date} onChange={setDate} type="date" />
+          </div>
+          <div style={{ marginBottom: '12px' }}>
             <CheckoutInput label="Start Time *" value={time} onChange={setTime} type="time" />
+          </div>
+          <div className="grid-2-form" style={{ marginBottom: '12px' }}>
             <CheckoutInput label="Duration (hrs)" value={duration} onChange={setDuration} placeholder="2" />
             <CheckoutInput label="Est. Guests" value={guests} onChange={setGuests} placeholder="50" />
           </div>
