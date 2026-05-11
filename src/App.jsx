@@ -82,6 +82,16 @@ const SIZES = [
 // ═══════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════
+
+// Returns YYYY-MM-DD in LOCAL time (not UTC).
+// Using toISOString() would shift the date in evening hours for non-UTC zones.
+const formatLocalDate = (d) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
 const generateTimeSlots = () => {
   const slots = [];
   for (let h = 9; h <= 17; h++) {
@@ -102,7 +112,7 @@ const getNextSevenDays = () => {
     const d = new Date(today);
     d.setDate(today.getDate() + i);
     days.push({
-      iso: d.toISOString().split('T')[0],
+      iso: formatLocalDate(d),
       day: d.toLocaleDateString('en-US', { weekday: 'short' }),
       date: d.getDate(),
       month: d.toLocaleDateString('en-US', { month: 'short' }),
@@ -647,9 +657,16 @@ const CheckoutFlow = ({ cart, cartTotal, onBack, onComplete }) => {
   const [submitting, setSubmitting] = useState(false);
   const [customerInfo, setCustomerInfo] = useState({ name: '', phone: '', email: '' });
   const [error, setError] = useState('');
+  const [now, setNow] = useState(() => new Date());
 
   const days = useMemo(() => getNextSevenDays(), []);
   const allSlots = useMemo(() => generateTimeSlots(), []);
+
+  // Tick every 30 seconds so past slots disappear in near-real-time
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 30000);
+    return () => clearInterval(t);
+  }, []);
 
   // Real-time subscribe to slot updates for the selected date
   useEffect(() => {
@@ -661,6 +678,31 @@ const CheckoutFlow = ({ cart, cartTotal, onBack, onComplete }) => {
   }, [selectedDate]);
 
   const isSlotTaken = (time) => Boolean(bookedSlots[time]);
+
+  // BUFFER: customer can't pick a slot less than this many minutes from now.
+  // Gives staff prep time + accounts for travel time.
+  const PICKUP_BUFFER_MINUTES = 15;
+
+  // Filter slots: past times (with buffer) are hidden when selectedDate is today.
+  // For future dates, all slots show.
+  const isSelectedDateToday = selectedDate === formatLocalDate(now);
+
+  const visibleSlots = useMemo(() => {
+    if (!isSelectedDateToday) return allSlots;
+    const cutoff = new Date(now.getTime() + PICKUP_BUFFER_MINUTES * 60000);
+    const cutoffMinutes = cutoff.getHours() * 60 + cutoff.getMinutes();
+    return allSlots.filter(slot => {
+      const [h, m] = slot.time.split(':').map(Number);
+      return (h * 60 + m) > cutoffMinutes;
+    });
+  }, [allSlots, isSelectedDateToday, now]);
+
+  // If currently-selected time becomes invalid (passes or gets taken), clear it
+  useEffect(() => {
+    if (!selectedTime) return;
+    const stillValid = visibleSlots.find(s => s.time === selectedTime) && !isSlotTaken(selectedTime);
+    if (!stillValid) setSelectedTime(null);
+  }, [visibleSlots, selectedTime, bookedSlots]);
 
   const handleSubmit = async () => {
     setError('');
@@ -741,25 +783,36 @@ const CheckoutFlow = ({ cart, cartTotal, onBack, onComplete }) => {
             <h3 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '20px', color: '#2A1810', margin: 0, fontWeight: 500 }}>Pickup Time</h3>
           </div>
           <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '13px', color: '#5C3A21', margin: '0 0 14px 0' }}>
-            15-minute windows. Taken slots disappear in real time.
+            {isSelectedDateToday
+              ? `15-minute windows · earliest pickup ${PICKUP_BUFFER_MINUTES} min from now.`
+              : '15-minute windows. Taken slots disappear in real time.'}
           </p>
 
-          <div style={{ display: 'grid', gap: '6px', gridTemplateColumns: 'repeat(auto-fill, minmax(86px, 1fr))' }}>
-            {allSlots.filter(s => !isSlotTaken(s.time)).map(slot => {
-              const selected = selectedTime === slot.time;
+          {(() => {
+            const openSlots = visibleSlots.filter(s => !isSlotTaken(s.time));
+            if (openSlots.length === 0) {
               return (
-                <button key={slot.time} onClick={() => setSelectedTime(slot.time)} data-compact
-                  style={{ padding: '12px 6px', borderRadius: '3px', border: `1.5px solid ${selected ? '#E8A4B8' : 'rgba(92, 58, 33, 0.15)'}`, background: selected ? '#E8A4B8' : '#FAF1E4', color: '#2A1810', fontFamily: '"Outfit", sans-serif', fontSize: '12px', fontWeight: selected ? 600 : 400, cursor: 'pointer', transition: 'all 0.15s' }}>
-                  {slot.display}
-                </button>
+                <p style={{ textAlign: 'center', fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', color: '#5C3A21', padding: '20px 8px', margin: 0 }}>
+                  {isSelectedDateToday
+                    ? "We're closed for new orders today. Please pick another day."
+                    : 'All time slots are booked for this day. Please pick another day.'}
+                </p>
               );
-            })}
-          </div>
-          {allSlots.every(s => isSlotTaken(s.time)) && (
-            <p style={{ textAlign: 'center', fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', color: '#5C3A21', padding: '20px' }}>
-              All time slots are booked for this day. Please pick another day.
-            </p>
-          )}
+            }
+            return (
+              <div style={{ display: 'grid', gap: '6px', gridTemplateColumns: 'repeat(auto-fill, minmax(86px, 1fr))' }}>
+                {openSlots.map(slot => {
+                  const selected = selectedTime === slot.time;
+                  return (
+                    <button key={slot.time} onClick={() => setSelectedTime(slot.time)} data-compact
+                      style={{ padding: '12px 6px', borderRadius: '3px', border: `1.5px solid ${selected ? '#E8A4B8' : 'rgba(92, 58, 33, 0.15)'}`, background: selected ? '#E8A4B8' : '#FAF1E4', color: '#2A1810', fontFamily: '"Outfit", sans-serif', fontSize: '12px', fontWeight: selected ? 600 : 400, cursor: 'pointer', transition: 'all 0.15s' }}>
+                      {slot.display}
+                    </button>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
 
         <div style={{ background: '#FFFEFA', padding: '20px', borderRadius: '4px', marginBottom: '16px', border: '1px solid rgba(92, 58, 33, 0.1)' }}>
