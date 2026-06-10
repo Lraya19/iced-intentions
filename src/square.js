@@ -1,0 +1,149 @@
+// ═══════════════════════════════════════════════════════════════
+// Iced Intentions — Square Web Payments SDK helper (frontend)
+// ───────────────────────────────────────────────────────────────
+// Loads the Square SDK, initializes the card + Apple Pay payment
+// methods, tokenizes the card, and calls our Supabase Edge Function
+// to actually charge it. The secret token lives only in the Edge
+// Function — this file only ever handles the public Application ID
+// and one-time card tokens.
+// ═══════════════════════════════════════════════════════════════
+
+// These come from Vite env vars (set in .env and in Vercel).
+const SQUARE_APP_ID = import.meta.env.VITE_SQUARE_APP_ID;
+const SQUARE_LOCATION_ID = import.meta.env.VITE_SQUARE_LOCATION_ID;
+const SQUARE_ENV = (import.meta.env.VITE_SQUARE_ENV || "sandbox").toLowerCase();
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+// The SDK script URL differs by environment.
+const SDK_SRC = SQUARE_ENV === "production"
+  ? "https://web.squarecdn.com/v1/square.js"
+  : "https://sandbox.web.squarecdn.com/v1/square.js";
+
+let sdkLoadPromise = null;
+
+// Returns true if Square is configured at all (lets the UI degrade
+// gracefully to pay-at-pickup if env vars are missing).
+export const isSquareConfigured = () =>
+  Boolean(SQUARE_APP_ID && SQUARE_LOCATION_ID);
+
+// Dynamically inject the Square SDK <script> once.
+function loadSquareSdk() {
+  if (sdkLoadPromise) return sdkLoadPromise;
+
+  sdkLoadPromise = new Promise((resolve, reject) => {
+    if (window.Square) {
+      resolve(window.Square);
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = SDK_SRC;
+    script.async = true;
+    script.onload = () => {
+      if (window.Square) resolve(window.Square);
+      else reject(new Error("Square SDK loaded but window.Square is missing."));
+    };
+    script.onerror = () =>
+      reject(new Error("Failed to load the Square payment SDK."));
+    document.head.appendChild(script);
+  });
+
+  return sdkLoadPromise;
+}
+
+// Initializes a Payments instance + Card. Caller mounts the card into
+// a container element id. Returns { payments, card, attachApplePay }.
+export async function initSquarePayments(cardContainerId) {
+  const Square = await loadSquareSdk();
+  const payments = Square.payments(SQUARE_APP_ID, SQUARE_LOCATION_ID);
+
+  // Card form, styled to match the brand.
+  const card = await payments.card({
+    style: {
+      input: {
+        color: "#2A1810",
+        fontFamily: '"Outfit", sans-serif',
+        fontSize: "16px",
+      },
+      ".input-container": {
+        borderColor: "rgba(92, 58, 33, 0.2)",
+        borderRadius: "4px",
+      },
+      ".input-container.is-focus": {
+        borderColor: "#E8A4B8",
+      },
+      ".input-container.is-error": {
+        borderColor: "#A83A56",
+      },
+      "::placeholder": {
+        color: "rgba(92, 58, 33, 0.5)",
+      },
+    },
+  });
+  await card.attach(`#${cardContainerId}`);
+
+  return { payments, card };
+}
+
+// Sets up Apple Pay. Returns the applePay payment method or null if
+// unavailable (wrong device/browser, not verified, etc.). The button
+// is rendered by the caller; tokenization happens on click.
+export async function initApplePay(payments, amount) {
+  try {
+    const paymentRequest = payments.paymentRequest({
+      countryCode: "US",
+      currencyCode: "USD",
+      total: {
+        amount: amount.toFixed(2),
+        label: "Iced Intentions",
+      },
+    });
+    const applePay = await payments.applePay(paymentRequest);
+    return applePay;
+  } catch (err) {
+    // Apple Pay not available on this device/browser — that's fine.
+    console.log("Apple Pay unavailable:", err?.message || err);
+    return null;
+  }
+}
+
+// Tokenizes a payment method (card or applePay) into a one-time nonce.
+export async function tokenize(paymentMethod) {
+  const result = await paymentMethod.tokenize();
+  if (result.status === "OK") {
+    return result.token;
+  }
+  // Build a readable error from Square's tokenization errors.
+  let message = "We couldn't read your card. Please check the details.";
+  if (result.errors && result.errors.length > 0) {
+    message = result.errors[0].message || message;
+  }
+  throw new Error(message);
+}
+
+// Calls our Supabase Edge Function to charge the tokenized card.
+// Returns { success, paymentId, receiptUrl, status } or throws.
+export async function chargePayment({ sourceId, amount, orderId, buyerEmail, note }) {
+  const res = await fetch(`${SUPABASE_URL}/functions/v1/process-payment`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+      "apikey": SUPABASE_ANON_KEY,
+    },
+    body: JSON.stringify({ sourceId, amount, orderId, buyerEmail, note }),
+  });
+
+  let data;
+  try {
+    data = await res.json();
+  } catch {
+    throw new Error("Payment server returned an unexpected response.");
+  }
+
+  if (!res.ok || !data.success) {
+    throw new Error(data?.error || "Your payment could not be processed.");
+  }
+  return data;
+}
