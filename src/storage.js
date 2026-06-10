@@ -1,182 +1,181 @@
-// ─────────────────────────────────────────────────────
-// Storage Layer
-// ─────────────────────────────────────────────────────
-// Abstracts away whether we're using Supabase (production)
-// or localStorage (local dev fallback). The rest of the app
-// shouldn't care which one is active.
+// ═══════════════════════════════════════════════════════════════
+// Iced Intentions — Storage layer
+// ───────────────────────────────────────────────────────────────
+// Wraps Supabase for slots, events, and orders. Falls back to
+// localStorage when Supabase env vars are missing (local dev).
+//
+// Schema notes:
+//  - slots:  date (text), booked_times (jsonb { "09:00": "Name", ... }), updated_at
+//  - events: date (text PK), event_type, start_time, duration, guests,
+//            customer_name/email/phone, notes, booking_id, created_at
+//  - orders: id (text PK), pickup_date, pickup_time, pickup_time_display,
+//            customer (jsonb), items (jsonb), total, created_at,
+//            payment_status, square_payment_id, square_receipt_url
+//  - RPCs:   book_slot(p_date, p_time, p_customer), book_event(p_date, p_booking)
+// ═══════════════════════════════════════════════════════════════
 
-import { supabase, isSupabaseConfigured } from './supabase';
+import { supabase, isSupabaseEnabled } from './supabase';
 
-// ─── ORDER TIME SLOTS ──────────────────────────────────────
-// Table: slots(date primary key, booked_times jsonb, updated_at timestamptz)
-// booked_times shape: { "09:00": { customer: "...", ts: <unix> } }
+const LS = {
+  get(key, fallback) {
+    try { return JSON.parse(localStorage.getItem(key)) ?? fallback; }
+    catch { return fallback; }
+  },
+  set(key, val) {
+    try { localStorage.setItem(key, JSON.stringify(val)); } catch { /* ignore */ }
+  },
+};
 
-export const subscribeToSlots = (date, callback) => {
-  if (isSupabaseConfigured && supabase) {
-    let active = true;
+// ═══════════════════════════════════════════════════════
+// SLOTS
+// ═══════════════════════════════════════════════════════
 
-    // Initial load
-    supabase
+// Subscribe to booked slots for a given date.
+// Calls cb({ "09:00": "Name", ... }). Returns an unsubscribe function.
+export function subscribeToSlots(date, cb) {
+  if (!isSupabaseEnabled) {
+    const all = LS.get('ii_slots', {});
+    cb(all[date] || {});
+    const handler = () => {
+      const fresh = LS.get('ii_slots', {});
+      cb(fresh[date] || {});
+    };
+    window.addEventListener('storage', handler);
+    return () => window.removeEventListener('storage', handler);
+  }
+
+  const fetchSlots = async () => {
+    const { data, error } = await supabase
       .from('slots')
       .select('booked_times')
       .eq('date', date)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (active) callback(data?.booked_times || {});
-      });
-
-    // Real-time subscription — callback fires whenever this row changes
-    const channel = supabase
-      .channel(`slots:${date}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'slots', filter: `date=eq.${date}` },
-        (payload) => {
-          if (!active) return;
-          const next = payload.new?.booked_times || {};
-          callback(next);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      active = false;
-      supabase.removeChannel(channel);
-    };
-  }
-
-  // localStorage fallback
-  const read = () => {
-    try {
-      const raw = localStorage.getItem(`slots:${date}`);
-      callback(raw ? JSON.parse(raw) : {});
-    } catch {
-      callback({});
-    }
+      .maybeSingle();
+    if (error) { console.warn('Slot fetch error:', error.message); return; }
+    cb((data && data.booked_times) || {});
   };
-  read();
-  const handler = (e) => { if (e.key === `slots:${date}`) read(); };
-  window.addEventListener('storage', handler);
-  return () => window.removeEventListener('storage', handler);
-};
+  fetchSlots();
 
-// Atomic booking — uses a Postgres function with row locking so two
-// customers can't grab the same slot at the same instant
-export const bookSlot = async (date, time, customerName) => {
-  if (isSupabaseConfigured && supabase) {
-    const { error } = await supabase.rpc('book_slot', {
-      p_date: date,
-      p_time: time,
-      p_customer: customerName,
-    });
-    if (error) {
-      // The function raises 'SLOT_TAKEN' which arrives as a Postgres error
-      if (error.message?.includes('SLOT_TAKEN')) {
-        throw new Error('SLOT_TAKEN');
-      }
-      throw error;
-    }
-    return true;
+  const channel = supabase
+    .channel(`slots-${date}`)
+    .on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'slots', filter: `date=eq.${date}` },
+      () => fetchSlots(),
+    )
+    .subscribe();
+
+  return () => { supabase.removeChannel(channel); };
+}
+
+// Atomically book a slot. Throws Error('SLOT_TAKEN') if already booked.
+export async function bookSlot(date, slotTime, customerName) {
+  if (!isSupabaseEnabled) {
+    const all = LS.get('ii_slots', {});
+    all[date] = all[date] || {};
+    if (all[date][slotTime]) throw new Error('SLOT_TAKEN');
+    all[date][slotTime] = customerName || 'Booked';
+    LS.set('ii_slots', all);
+    return;
   }
 
-  // localStorage fallback (no real concurrency, but works locally)
-  const raw = localStorage.getItem(`slots:${date}`);
-  const slots = raw ? JSON.parse(raw) : {};
-  if (slots[time]) throw new Error('SLOT_TAKEN');
-  slots[time] = { customer: customerName, ts: Date.now() };
-  localStorage.setItem(`slots:${date}`, JSON.stringify(slots));
-  return true;
-};
+  const { error } = await supabase.rpc('book_slot', {
+    p_date: date,
+    p_time: slotTime,
+    p_customer: customerName || 'Booked',
+  });
 
-// ─── EVENT BOOKINGS ─────────────────────────────────────────
-// Table: events — one row per date. We just expose the date column to clients.
+  if (error) {
+    if (error.message && error.message.includes('SLOT_TAKEN')) {
+      throw new Error('SLOT_TAKEN');
+    }
+    throw error;
+  }
+}
 
-export const subscribeToEventDates = (callback) => {
-  if (isSupabaseConfigured && supabase) {
-    let active = true;
+// ═══════════════════════════════════════════════════════
+// EVENTS
+// ═══════════════════════════════════════════════════════
 
-    const refresh = async () => {
-      const { data } = await supabase.from('events').select('date');
-      if (!active) return;
-      const dates = {};
-      (data || []).forEach((e) => { dates[e.date] = true; });
-      callback(dates);
-    };
-
-    refresh();
-
-    const channel = supabase
-      .channel('events_dates')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'events' },
-        refresh
-      )
-      .subscribe();
-
-    return () => {
-      active = false;
-      supabase.removeChannel(channel);
-    };
+export function subscribeToEventDates(cb) {
+  if (!isSupabaseEnabled) {
+    const all = LS.get('ii_events', {});
+    cb(all);
+    const handler = () => cb(LS.get('ii_events', {}));
+    window.addEventListener('storage', handler);
+    return () => window.removeEventListener('storage', handler);
   }
 
-  // localStorage fallback
-  const read = () => {
-    try {
-      const raw = localStorage.getItem('eventDates');
-      callback(raw ? JSON.parse(raw) : {});
-    } catch {
-      callback({});
-    }
+  const fetchDates = async () => {
+    const { data, error } = await supabase.from('events').select('date');
+    if (error) { console.warn('Event fetch error:', error.message); return; }
+    const map = {};
+    (data || []).forEach((row) => { map[row.date] = true; });
+    cb(map);
   };
-  read();
-  const handler = (e) => { if (e.key === 'eventDates') read(); };
-  window.addEventListener('storage', handler);
-  return () => window.removeEventListener('storage', handler);
-};
+  fetchDates();
 
-export const bookEvent = async (date, booking) => {
-  if (isSupabaseConfigured && supabase) {
-    const { error } = await supabase.rpc('book_event', {
-      p_date: date,
-      p_booking: booking,
-    });
-    if (error) {
-      if (error.message?.includes('DATE_TAKEN')) {
-        throw new Error('DATE_TAKEN');
-      }
-      throw error;
+  const channel = supabase
+    .channel('events-all')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, () => fetchDates())
+    .subscribe();
+
+  return () => { supabase.removeChannel(channel); };
+}
+
+// Book an event date. Throws Error('DATE_TAKEN') if taken.
+export async function bookEvent(date, booking) {
+  if (!isSupabaseEnabled) {
+    const all = LS.get('ii_events', {});
+    if (all[date]) throw new Error('DATE_TAKEN');
+    all[date] = booking;
+    LS.set('ii_events', all);
+    return;
+  }
+
+  const { error } = await supabase.rpc('book_event', {
+    p_date: date,
+    p_booking: booking,
+  });
+
+  if (error) {
+    if (error.message && error.message.includes('DATE_TAKEN')) {
+      throw new Error('DATE_TAKEN');
     }
-    return true;
+    throw error;
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// ORDERS
+// ═══════════════════════════════════════════════════════
+
+// Save an order. Maps the order object to the orders table columns,
+// including the payment fields (nullable — safe for pay-at-pickup).
+export async function saveOrder(orderId, order) {
+  if (!isSupabaseEnabled) {
+    const all = LS.get('ii_orders', []);
+    const idx = all.findIndex((o) => o.id === orderId);
+    if (idx >= 0) all[idx] = order; else all.push(order);
+    LS.set('ii_orders', all);
+    return;
   }
 
-  // localStorage fallback
-  const raw = localStorage.getItem('eventDates');
-  const dates = raw ? JSON.parse(raw) : {};
-  if (dates[date]) throw new Error('DATE_TAKEN');
-  dates[date] = true;
-  localStorage.setItem('eventDates', JSON.stringify(dates));
-  localStorage.setItem(`event:${date}`, JSON.stringify(booking));
-  return true;
-};
+  const row = {
+    id: orderId,
+    pickup_date: order.pickupDate,
+    pickup_time: order.pickupTime,
+    pickup_time_display: order.pickupTimeDisplay || null,
+    customer: order.customer,
+    items: order.items,
+    total: order.total,
+    payment_status: order.paymentStatus || 'unpaid',
+    square_payment_id: order.squarePaymentId || null,
+    square_receipt_url: order.squareReceiptUrl || null,
+  };
 
-// ─── ORDER HISTORY ──────────────────────────────────────────
-// Table: orders — write-only for the public site. Owner reads via dashboard.
-
-export const saveOrder = async (orderId, order) => {
-  if (isSupabaseConfigured && supabase) {
-    const { error } = await supabase.from('orders').insert({
-      id: orderId,
-      pickup_date: order.pickupDate,
-      pickup_time: order.pickupTime,
-      pickup_time_display: order.pickupTimeDisplay,
-      customer: order.customer,
-      items: order.items,
-      total: order.total,
-    });
-    if (error) throw error;
-    return true;
-  }
-  localStorage.setItem(`order:${orderId}`, JSON.stringify(order));
-  return true;
-};
+  // INSERT only — the orders table RLS allows public INSERT but not UPDATE.
+  // For online payments, the row is inserted once as 'pending', then the
+  // Edge Function (service role) updates it to 'paid' server-side.
+  const { error } = await supabase.from('orders').insert(row);
+  if (error) throw error;
+}
