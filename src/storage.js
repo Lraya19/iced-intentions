@@ -14,7 +14,7 @@
 //  - RPCs:   book_slot(p_date, p_time, p_customer), book_event(p_date, p_booking)
 // ═══════════════════════════════════════════════════════════════
 
-import { supabase, isSupabaseEnabled } from './supabase';
+import { supabase, isSupabaseConfigured } from './supabase';
 
 const LS = {
   get(key, fallback) {
@@ -33,7 +33,7 @@ const LS = {
 // Subscribe to booked slots for a given date.
 // Calls cb({ "09:00": "Name", ... }). Returns an unsubscribe function.
 export function subscribeToSlots(date, cb) {
-  if (!isSupabaseEnabled) {
+  if (!isSupabaseConfigured) {
     const all = LS.get('ii_slots', {});
     cb(all[date] || {});
     const handler = () => {
@@ -69,7 +69,7 @@ export function subscribeToSlots(date, cb) {
 
 // Atomically book a slot. Throws Error('SLOT_TAKEN') if already booked.
 export async function bookSlot(date, slotTime, customerName) {
-  if (!isSupabaseEnabled) {
+  if (!isSupabaseConfigured) {
     const all = LS.get('ii_slots', {});
     all[date] = all[date] || {};
     if (all[date][slotTime]) throw new Error('SLOT_TAKEN');
@@ -97,7 +97,7 @@ export async function bookSlot(date, slotTime, customerName) {
 // ═══════════════════════════════════════════════════════
 
 export function subscribeToEventDates(cb) {
-  if (!isSupabaseEnabled) {
+  if (!isSupabaseConfigured) {
     const all = LS.get('ii_events', {});
     cb(all);
     const handler = () => cb(LS.get('ii_events', {}));
@@ -124,7 +124,7 @@ export function subscribeToEventDates(cb) {
 
 // Book an event date. Throws Error('DATE_TAKEN') if taken.
 export async function bookEvent(date, booking) {
-  if (!isSupabaseEnabled) {
+  if (!isSupabaseConfigured) {
     const all = LS.get('ii_events', {});
     if (all[date]) throw new Error('DATE_TAKEN');
     all[date] = booking;
@@ -152,7 +152,7 @@ export async function bookEvent(date, booking) {
 // Save an order. Maps the order object to the orders table columns,
 // including the payment fields (nullable — safe for pay-at-pickup).
 export async function saveOrder(orderId, order) {
-  if (!isSupabaseEnabled) {
+  if (!isSupabaseConfigured) {
     const all = LS.get('ii_orders', []);
     const idx = all.findIndex((o) => o.id === orderId);
     if (idx >= 0) all[idx] = order; else all.push(order);
