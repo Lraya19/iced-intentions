@@ -89,7 +89,13 @@ export async function initSquarePayments(cardContainerId) {
 // Sets up Apple Pay. Returns the applePay payment method or null if
 // unavailable (wrong device/browser, not verified, etc.). The button
 // is rendered by the caller; tokenization happens on click.
+//
+// NOTE: Apple Pay is temporarily DISABLED until domain verification is
+// completed in Square. The card form works for everyone (including iPhone
+// users) in the meantime. To re-enable later, delete the line below.
 export async function initApplePay(payments, amount) {
+  return null; // ← Apple Pay disabled; remove this line to re-enable once verified
+  // eslint-disable-next-line no-unreachable
   try {
     const paymentRequest = payments.paymentRequest({
       countryCode: "US",
