@@ -1,11 +1,14 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Heart, ShoppingBag, Calendar, Clock, MapPin, Phone, Instagram,
   ChevronRight, ChevronLeft, X, Plus, Minus, Check, Sparkles,
-  Coffee, Star, Loader2, Menu as MenuIcon,
+  Coffee, Star, Loader2, Menu as MenuIcon, CreditCard, Lock,
 } from 'lucide-react';
 import { subscribeToSlots, bookSlot, subscribeToEventDates, bookEvent, saveOrder } from './storage';
 import { sendOrderEmail, sendEventEmail } from './email';
+import {
+  isSquareConfigured, initSquarePayments, initApplePay, tokenize, chargePayment,
+} from './square';
 
 // ═══════════════════════════════════════════════════════
 // PUBLIC BUSINESS CONFIG (read from env)
@@ -659,6 +662,16 @@ const CheckoutFlow = ({ cart, cartTotal, onBack, onComplete }) => {
   const [error, setError] = useState('');
   const [now, setNow] = useState(() => new Date());
 
+  // ── Payment state ──
+  // payMode: 'now' (Square online) or 'pickup' (pay in person).
+  const squareOn = isSquareConfigured();
+  const [payMode, setPayMode] = useState(squareOn ? 'now' : 'pickup');
+  const [cardReady, setCardReady] = useState(false);
+  const [paymentsObj, setPaymentsObj] = useState(null);
+  const [cardObj, setCardObj] = useState(null);
+  const [applePayObj, setApplePayObj] = useState(null);
+  const cardMounted = useRef(false);
+
   const days = useMemo(() => getNextSevenDays(), []);
   const allSlots = useMemo(() => generateTimeSlots(), []);
 
@@ -676,6 +689,32 @@ const CheckoutFlow = ({ cart, cartTotal, onBack, onComplete }) => {
     });
     return unsubscribe;
   }, [selectedDate]);
+
+  // Initialize the Square card form when "Pay now" is active.
+  useEffect(() => {
+    let cancelled = false;
+    if (payMode !== 'now' || !squareOn || cardMounted.current) return;
+
+    (async () => {
+      try {
+        const { payments, card } = await initSquarePayments('si-card-container');
+        if (cancelled) return;
+        cardMounted.current = true;
+        setPaymentsObj(payments);
+        setCardObj(card);
+        setCardReady(true);
+
+        // Try Apple Pay (only shows on supported Apple devices/browsers)
+        const ap = await initApplePay(payments, cartTotal);
+        if (!cancelled && ap) setApplePayObj(ap);
+      } catch (err) {
+        console.error('Square init failed:', err);
+        if (!cancelled) setError('Card form could not load. You can choose "Pay at pickup" instead.');
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [payMode, squareOn, cartTotal]);
 
   const isSlotTaken = (time) => Boolean(bookedSlots[time]);
 
@@ -704,18 +743,79 @@ const CheckoutFlow = ({ cart, cartTotal, onBack, onComplete }) => {
     if (!stillValid) setSelectedTime(null);
   }, [visibleSlots, selectedTime, bookedSlots]);
 
-  const handleSubmit = async () => {
+  // Shared validation before any submit path.
+  const validate = () => {
     setError('');
-    if (!selectedTime) { setError('Please choose a pickup time.'); return; }
-    if (!customerInfo.name || !customerInfo.phone) { setError('Name and phone are required.'); return; }
+    if (!selectedTime) { setError('Please choose a pickup time.'); return false; }
+    if (!customerInfo.name || !customerInfo.phone) { setError('Name and phone are required.'); return false; }
+    // Email required when paying online (needed for the receipt).
+    if (payMode === 'now') {
+      const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerInfo.email);
+      if (!emailOk) { setError('A valid email is required for your payment receipt.'); return false; }
+    }
+    return true;
+  };
 
+  // Builds the order object + books the slot + saves + emails.
+  // Optionally tags payment info. Returns the order or throws.
+  const finalizeOrder = async (paymentInfo) => {
+    // Atomic transaction prevents two customers grabbing the same slot
+    await bookSlot(selectedDate, selectedTime, customerInfo.name);
+
+    const orderId = paymentInfo?.orderId || `ord_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const order = {
+      id: orderId,
+      placedAt: new Date().toISOString(),
+      pickupDate: selectedDate,
+      pickupTime: selectedTime,
+      pickupTimeDisplay: allSlots.find(s => s.time === selectedTime)?.display,
+      customer: customerInfo,
+      items: cart,
+      total: cartTotal,
+      paymentStatus: paymentInfo ? 'paid' : 'unpaid',
+      squarePaymentId: paymentInfo?.paymentId || null,
+      squareReceiptUrl: paymentInfo?.receiptUrl || null,
+    };
+
+    await saveOrder(orderId, order);
+    try { await sendOrderEmail(order); } catch (e) { console.warn('Email send failed:', e); }
+    return order;
+  };
+
+  // ── PAY AT PICKUP path ──
+  const handlePayAtPickup = async () => {
+    if (!validate()) return;
     setSubmitting(true);
     try {
-      // Atomic transaction prevents two customers grabbing the same slot
+      const order = await finalizeOrder(null);
+      setSubmitting(false);
+      onComplete(order);
+    } catch (err) {
+      setSubmitting(false);
+      handleSubmitError(err);
+    }
+  };
+
+  // ── PAY NOW path (card or Apple Pay) ──
+  const handlePayNow = async (paymentMethod) => {
+    if (!validate()) return;
+    if (!paymentMethod) { setError('Payment form is still loading. One moment...'); return; }
+
+    setSubmitting(true);
+    setError('');
+    try {
+      // 1. Tokenize the card / Apple Pay into a one-time nonce.
+      const token = await tokenize(paymentMethod);
+
+      // 2. Pre-generate the order id so the charge + order row match.
+      const orderId = `ord_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+
+      // 3. Book the slot BEFORE charging (don't charge for a slot that's gone).
       await bookSlot(selectedDate, selectedTime, customerInfo.name);
 
-      const orderId = `ord_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-      const order = {
+      // 4. Insert the order as 'pending' (single INSERT; RLS allows insert only).
+      //    The Edge Function will flip it to 'paid' server-side after charging.
+      const baseOrder = {
         id: orderId,
         placedAt: new Date().toISOString(),
         pickupDate: selectedDate,
@@ -724,24 +824,54 @@ const CheckoutFlow = ({ cart, cartTotal, onBack, onComplete }) => {
         customer: customerInfo,
         items: cart,
         total: cartTotal,
+        paymentStatus: 'pending',
+        squarePaymentId: null,
+        squareReceiptUrl: null,
       };
+      await saveOrder(orderId, baseOrder);
 
-      await saveOrder(orderId, order);
+      // 5. Charge via the Edge Function (updates the order row to 'paid').
+      const result = await chargePayment({
+        sourceId: token,
+        amount: cartTotal,
+        orderId,
+        buyerEmail: customerInfo.email,
+        note: `Iced Intentions — ${cart.length} item(s), pickup ${selectedDate} ${selectedTime}`,
+      });
 
+      // 6. Build the final order object for the confirmation screen + email.
+      //    (We do NOT call saveOrder again — RLS blocks update from the client;
+      //     the Edge Function already persisted the paid status.)
+      const order = {
+        ...baseOrder,
+        paymentStatus: 'paid',
+        squarePaymentId: result.paymentId,
+        squareReceiptUrl: result.receiptUrl,
+      };
       try { await sendOrderEmail(order); } catch (e) { console.warn('Email send failed:', e); }
 
       setSubmitting(false);
       onComplete(order);
     } catch (err) {
       setSubmitting(false);
-      if (err.message === 'SLOT_TAKEN') {
-        setError('That time was just booked by someone else. Please pick another.');
-        setSelectedTime(null);
-      } else {
-        setError('Something went wrong. Please try again.');
-        console.error(err);
-      }
+      handleSubmitError(err);
     }
+  };
+
+  const handleSubmitError = (err) => {
+    if (err.message === 'SLOT_TAKEN') {
+      setError('That time was just booked by someone else. Please pick another.');
+      setSelectedTime(null);
+    } else {
+      setError(err.message || 'Something went wrong. Please try again.');
+      console.error(err);
+    }
+  };
+
+  // Router for the main button.
+  const handleSubmit = () => {
+    if (payMode === 'now') handlePayNow(cardObj);
+    else handlePayAtPickup();
   };
 
   return (
@@ -820,9 +950,68 @@ const CheckoutFlow = ({ cart, cartTotal, onBack, onComplete }) => {
           <div style={{ display: 'grid', gap: '14px' }}>
             <CheckoutInput label="Full Name *" value={customerInfo.name} onChange={(v) => setCustomerInfo({ ...customerInfo, name: v })} />
             <CheckoutInput label="Phone *" value={customerInfo.phone} onChange={(v) => setCustomerInfo({ ...customerInfo, phone: v })} placeholder="(972) 555-0100" />
-            <CheckoutInput label="Email" value={customerInfo.email} onChange={(v) => setCustomerInfo({ ...customerInfo, email: v })} placeholder="for receipt (optional)" type="email" />
+            <CheckoutInput label={payMode === 'now' ? 'Email *' : 'Email'} value={customerInfo.email} onChange={(v) => setCustomerInfo({ ...customerInfo, email: v })} placeholder={payMode === 'now' ? 'for your receipt' : 'for receipt (optional)'} type="email" />
           </div>
         </div>
+
+        {/* ── PAYMENT METHOD ── */}
+        {squareOn && (
+          <div style={{ background: '#FFFEFA', padding: '20px', borderRadius: '4px', marginBottom: '16px', border: '1px solid rgba(92, 58, 33, 0.1)' }}>
+            <h3 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '20px', color: '#2A1810', margin: '0 0 14px 0', fontWeight: 500 }}>Payment</h3>
+
+            {/* Pay-mode toggle */}
+            <div style={{ display: 'flex', gap: '10px', marginBottom: payMode === 'now' ? '18px' : '0' }}>
+              <button onClick={() => setPayMode('now')} data-compact
+                style={{ flex: 1, padding: '14px 10px', borderRadius: '4px', border: `1.5px solid ${payMode === 'now' ? '#2A1810' : 'rgba(92, 58, 33, 0.2)'}`, background: payMode === 'now' ? '#2A1810' : '#FFFEFA', color: payMode === 'now' ? '#FAF1E4' : '#2A1810', fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s' }}>
+                <CreditCard size={15} /> Pay Now
+              </button>
+              <button onClick={() => setPayMode('pickup')} data-compact
+                style={{ flex: 1, padding: '14px 10px', borderRadius: '4px', border: `1.5px solid ${payMode === 'pickup' ? '#2A1810' : 'rgba(92, 58, 33, 0.2)'}`, background: payMode === 'pickup' ? '#2A1810' : '#FFFEFA', color: payMode === 'pickup' ? '#FAF1E4' : '#2A1810', fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s' }}>
+                <Coffee size={15} /> Pay at Pickup
+              </button>
+            </div>
+
+            {/* Apple Pay button (only appears on supported Apple devices) */}
+            {payMode === 'now' && applePayObj && (
+              <div style={{ marginBottom: '14px' }}>
+                <button
+                  onClick={() => handlePayNow(applePayObj)}
+                  disabled={submitting}
+                  data-compact
+                  style={{ width: '100%', height: '48px', background: '#000', color: '#fff', border: 'none', borderRadius: '6px', cursor: submitting ? 'wait' : 'pointer', fontFamily: '-apple-system, sans-serif', fontSize: '17px', fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                  aria-label="Pay with Apple Pay"
+                >
+                  Pay with  Pay
+                </button>
+                <div style={{ textAlign: 'center', margin: '12px 0', position: 'relative' }}>
+                  <span style={{ background: '#FFFEFA', padding: '0 12px', position: 'relative', zIndex: 1, fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5C3A21' }}>or pay by card</span>
+                  <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: '1px', background: 'rgba(92, 58, 33, 0.15)' }} />
+                </div>
+              </div>
+            )}
+
+            {/* Square card form mounts here */}
+            {payMode === 'now' && (
+              <div>
+                <div id="si-card-container" style={{ minHeight: '52px', marginBottom: '10px' }} />
+                {!cardReady && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#5C3A21', fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '14px' }}>
+                    <Loader2 size={14} className="spin" /> Loading secure card form...
+                  </div>
+                )}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', marginTop: '4px', color: '#5C3A21', fontFamily: '"Outfit", sans-serif', fontSize: '11px' }}>
+                  <Lock size={11} /> Secured by Square · we never see your card number
+                </div>
+              </div>
+            )}
+
+            {payMode === 'pickup' && (
+              <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '14px', color: '#5C3A21', margin: '14px 0 0 0' }}>
+                Pay with card or cash when you arrive. Your order will be ready at your pickup time.
+              </p>
+            )}
+          </div>
+        )}
 
         <div style={{ background: '#F0E2C9', padding: '20px', borderRadius: '4px', marginBottom: '20px', border: '1px solid rgba(92, 58, 33, 0.12)' }}>
           <h3 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '20px', color: '#2A1810', margin: '0 0 14px 0', fontWeight: 500 }}>Order Summary</h3>
@@ -848,13 +1037,19 @@ const CheckoutFlow = ({ cart, cartTotal, onBack, onComplete }) => {
           </div>
         )}
 
-        <button onClick={handleSubmit} disabled={submitting}
-          style={{ width: '100%', background: submitting ? '#5C3A21' : '#2A1810', color: '#FAF1E4', padding: '18px', border: 'none', borderRadius: '999px', fontFamily: '"Outfit", sans-serif', fontSize: '13px', letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, cursor: submitting ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
-          {submitting ? <><Loader2 size={16} className="spin" /> Placing Order...</> : <>Place Order <Heart size={14} fill="#E8A4B8" stroke="#E8A4B8" /></>}
+        <button onClick={handleSubmit} disabled={submitting || (payMode === 'now' && !cardReady)}
+          style={{ width: '100%', background: submitting ? '#5C3A21' : '#2A1810', color: '#FAF1E4', padding: '18px', border: 'none', borderRadius: '999px', fontFamily: '"Outfit", sans-serif', fontSize: '13px', letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, cursor: (submitting || (payMode === 'now' && !cardReady)) ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', opacity: (payMode === 'now' && !cardReady) ? 0.6 : 1 }}>
+          {submitting
+            ? <><Loader2 size={16} className="spin" /> {payMode === 'now' ? 'Processing Payment...' : 'Placing Order...'}</>
+            : payMode === 'now'
+              ? <><Lock size={14} /> Pay ${cartTotal.toFixed(2)}</>
+              : <>Place Order <Heart size={14} fill="#E8A4B8" stroke="#E8A4B8" /></>}
         </button>
 
         <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '13px', color: '#5C3A21', textAlign: 'center', marginTop: '14px' }}>
-          You'll get a confirmation. We'll have it ready right at your time.
+          {payMode === 'now'
+            ? "You'll get a receipt by email. We'll have your order ready right at your time."
+            : "You'll get a confirmation. We'll have it ready right at your time."}
         </p>
       </div>
     </div>
