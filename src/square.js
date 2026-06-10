@@ -59,11 +59,13 @@ export async function initSquarePayments(cardContainerId) {
   const payments = Square.payments(SQUARE_APP_ID, SQUARE_LOCATION_ID);
 
   // Card form, styled to match the brand.
+  // NOTE: Square's SDK only accepts a limited set of style properties and
+  // selectors. It rejects custom fonts like "Outfit" and the ::placeholder
+  // selector, so we keep styling minimal and SDK-safe here.
   const card = await payments.card({
     style: {
       input: {
         color: "#2A1810",
-        fontFamily: '"Outfit", sans-serif',
         fontSize: "16px",
       },
       ".input-container": {
@@ -75,9 +77,6 @@ export async function initSquarePayments(cardContainerId) {
       },
       ".input-container.is-error": {
         borderColor: "#A83A56",
-      },
-      "::placeholder": {
-        color: "rgba(92, 58, 33, 0.5)",
       },
     },
   });
