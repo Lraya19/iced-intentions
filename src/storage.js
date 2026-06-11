@@ -162,6 +162,7 @@ export async function saveOrder(orderId, order) {
 
   const row = {
     id: orderId,
+    user_id: order.userId || null,
     pickup_date: order.pickupDate,
     pickup_time: order.pickupTime,
     pickup_time_display: order.pickupTimeDisplay || null,
