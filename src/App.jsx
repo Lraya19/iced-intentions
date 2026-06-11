@@ -3,12 +3,18 @@ import {
   Heart, ShoppingBag, Calendar, Clock, MapPin, Phone, Instagram,
   ChevronRight, ChevronLeft, X, Plus, Minus, Check, Sparkles,
   Coffee, Star, Loader2, Menu as MenuIcon, CreditCard, Lock,
+  User, LogOut, Gift, Mail, Trash2, RotateCcw,
 } from 'lucide-react';
 import { subscribeToSlots, bookSlot, subscribeToEventDates, bookEvent, saveOrder } from './storage';
 import { sendOrderEmail, sendEventEmail } from './email';
 import {
   isSquareConfigured, initSquarePayments, initApplePay, tokenize, chargePayment,
 } from './square';
+import { sendMagicLink, onAuthChange, signOut, displayName } from './auth';
+import {
+  STAMPS_FOR_REWARD, getLoyaltyBalance, getLoyaltyHistory, getMyOrders,
+  getFavorites, addFavorite, removeFavorite,
+} from './loyalty';
 
 // ═══════════════════════════════════════════════════════
 // PUBLIC BUSINESS CONFIG (read from env)
@@ -194,7 +200,7 @@ const DrinkVisual = ({ gradient, size = 'md' }) => {
 // ═══════════════════════════════════════════════════════
 // NAV
 // ═══════════════════════════════════════════════════════
-const Nav = ({ page, setPage, cartCount }) => {
+const Nav = ({ page, setPage, cartCount, user, onAccount, onSignIn }) => {
   const [open, setOpen] = useState(false);
   const navItems = [
     { id: 'home', label: 'Home' },
@@ -235,6 +241,22 @@ const Nav = ({ page, setPage, cartCount }) => {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+          {/* Account / Sign-in (desktop) */}
+          <button
+            onClick={user ? onAccount : onSignIn}
+            className="nav-cart-desktop"
+            style={{
+              alignItems: 'center', gap: '8px',
+              background: 'transparent', color: '#2A1810',
+              padding: '9px 16px', borderRadius: '999px', border: '1.5px solid rgba(92,58,33,0.25)',
+              fontFamily: '"Outfit", sans-serif', fontSize: '12px',
+              letterSpacing: '0.08em', textTransform: 'uppercase',
+              fontWeight: 500, cursor: 'pointer',
+            }}
+          >
+            {user ? <><Gift size={14} /> My Card</> : <><User size={14} /> Sign In</>}
+          </button>
+
           <button
             onClick={() => setPage('order')}
             className="nav-cart-desktop"
@@ -299,6 +321,20 @@ const Nav = ({ page, setPage, cartCount }) => {
               {item.label}
             </button>
           ))}
+          <div style={{ borderTop: '1px solid rgba(92,58,33,0.12)', paddingTop: '12px', marginTop: '4px' }}>
+            <button
+              onClick={() => { setOpen(false); user ? onAccount() : onSignIn(); }}
+              style={{
+                background: 'none', border: 'none',
+                fontFamily: '"Cormorant Garamond", serif', fontSize: '20px',
+                color: '#2A1810', fontWeight: 600,
+                textAlign: 'left', padding: '8px 0', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: '10px',
+              }}
+            >
+              {user ? <><Gift size={18} /> My Loyalty Card</> : <><User size={18} /> Sign In / Join</>}
+            </button>
+          </div>
         </div>
       )}
     </nav>
@@ -562,17 +598,49 @@ const CheckoutInput = ({ label, value, onChange, placeholder, type = 'text' }) =
 // ═══════════════════════════════════════════════════════
 // DRINK CUSTOMIZER MODAL
 // ═══════════════════════════════════════════════════════
-const DrinkCustomizer = ({ drink, onClose, onAdd }) => {
+const DrinkCustomizer = ({ drink, onClose, onAdd, user, onSignIn }) => {
   const [size, setSize] = useState('L');
   const [addOns, setAddOns] = useState([]);
   const [qty, setQty] = useState(1);
   const [notes, setNotes] = useState('');
+  const [savingFav, setSavingFav] = useState(false);
+  const [favSaved, setFavSaved] = useState(false);
 
   const toggleAddOn = (id) => setAddOns(addOns.includes(id) ? addOns.filter(a => a !== id) : [...addOns, id]);
 
   const basePrice = size === 'L' ? drink.priceL : drink.priceBucket;
   const addOnTotal = addOns.reduce((s, id) => s + (ADD_ONS.find(a => a.id === id)?.price || 0), 0);
   const total = (basePrice + addOnTotal) * qty;
+
+  // Build a self-contained snapshot of this customization for favorites.
+  const buildFavoriteDrink = () => ({
+    id: drink.id,
+    name: drink.name,
+    desc: drink.desc,
+    category: drink.category,
+    gradient: drink.gradient,
+    priceL: drink.priceL,
+    priceBucket: drink.priceBucket,
+    size,
+    addOns,
+    addOnsData: addOns.map(id => ADD_ONS.find(a => a.id === id)).filter(Boolean),
+    qty,
+    notes,
+  });
+
+  const handleSaveFavorite = async () => {
+    if (!user) { onSignIn?.(); return; }
+    setSavingFav(true);
+    try {
+      await addFavorite(user.id, buildFavoriteDrink(), drink.name);
+      setFavSaved(true);
+      setTimeout(() => setFavSaved(false), 2500);
+    } catch (e) {
+      console.warn('Save favorite failed:', e);
+    } finally {
+      setSavingFav(false);
+    }
+  };
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -640,10 +708,24 @@ const DrinkCustomizer = ({ drink, onClose, onAdd }) => {
             </div>
           </div>
 
-          <button onClick={() => onAdd(drink, size, addOns, qty, notes)}
-            style={{ width: '100%', background: '#2A1810', color: '#FAF1E4', padding: '16px', border: 'none', borderRadius: '999px', fontFamily: '"Outfit", sans-serif', fontSize: '13px', letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
-            <Plus size={14} /> Add to Cart
-          </button>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button onClick={handleSaveFavorite} disabled={savingFav} data-compact
+              title={user ? 'Save as favorite' : 'Sign in to save'}
+              style={{ width: '54px', flexShrink: 0, background: favSaved ? '#E8A4B8' : 'transparent', color: '#2A1810', padding: '16px', border: `1.5px solid ${favSaved ? '#E8A4B8' : 'rgba(92,58,33,0.25)'}`, borderRadius: '999px', cursor: savingFav ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}>
+              {savingFav
+                ? <Loader2 size={16} className="spin" />
+                : <Heart size={16} fill={favSaved ? '#2A1810' : 'none'} stroke="#2A1810" />}
+            </button>
+            <button onClick={() => onAdd(drink, size, addOns, qty, notes)}
+              style={{ flex: 1, background: '#2A1810', color: '#FAF1E4', padding: '16px', border: 'none', borderRadius: '999px', fontFamily: '"Outfit", sans-serif', fontSize: '13px', letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+              <Plus size={14} /> Add to Cart
+            </button>
+          </div>
+          {favSaved && (
+            <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '13px', color: '#5C3A21', textAlign: 'center', margin: '10px 0 0 0' }}>
+              Saved to your favorites ♡
+            </p>
+          )}
         </div>
       </div>
     </div>
@@ -653,12 +735,16 @@ const DrinkCustomizer = ({ drink, onClose, onAdd }) => {
 // ═══════════════════════════════════════════════════════
 // CHECKOUT FLOW
 // ═══════════════════════════════════════════════════════
-const CheckoutFlow = ({ cart, cartTotal, onBack, onComplete }) => {
+const CheckoutFlow = ({ cart, cartTotal, user, onBack, onComplete }) => {
   const [selectedDate, setSelectedDate] = useState(getNextSevenDays()[0].iso);
   const [selectedTime, setSelectedTime] = useState(null);
   const [bookedSlots, setBookedSlots] = useState({});
   const [submitting, setSubmitting] = useState(false);
-  const [customerInfo, setCustomerInfo] = useState({ name: '', phone: '', email: '' });
+  const [customerInfo, setCustomerInfo] = useState({
+    name: user?.user_metadata?.full_name || user?.user_metadata?.name || '',
+    phone: '',
+    email: user?.email || '',
+  });
   const [error, setError] = useState('');
   const [now, setNow] = useState(() => new Date());
 
@@ -766,6 +852,7 @@ const CheckoutFlow = ({ cart, cartTotal, onBack, onComplete }) => {
     const order = {
       id: orderId,
       placedAt: new Date().toISOString(),
+      userId: user?.id || null,
       pickupDate: selectedDate,
       pickupTime: selectedTime,
       pickupTimeDisplay: allSlots.find(s => s.time === selectedTime)?.display,
@@ -818,6 +905,7 @@ const CheckoutFlow = ({ cart, cartTotal, onBack, onComplete }) => {
       const baseOrder = {
         id: orderId,
         placedAt: new Date().toISOString(),
+        userId: user?.id || null,
         pickupDate: selectedDate,
         pickupTime: selectedTime,
         pickupTimeDisplay: allSlots.find(s => s.time === selectedTime)?.display,
@@ -835,6 +923,7 @@ const CheckoutFlow = ({ cart, cartTotal, onBack, onComplete }) => {
         sourceId: token,
         amount: cartTotal,
         orderId,
+        userId: user?.id || null,
         buyerEmail: customerInfo.email,
         note: `Iced Intentions — ${cart.length} item(s), pickup ${selectedDate} ${selectedTime}`,
       });
@@ -1111,7 +1200,7 @@ const OrderConfirmation = ({ order, onClose }) => (
 // ═══════════════════════════════════════════════════════
 // ORDER PAGE
 // ═══════════════════════════════════════════════════════
-const OrderPage = ({ cart, setCart }) => {
+const OrderPage = ({ cart, setCart, user, onSignIn }) => {
   const [activeCategory, setActiveCategory] = useState('matcha');
   const [selectedDrink, setSelectedDrink] = useState(null);
   const [showCheckout, setShowCheckout] = useState(false);
@@ -1136,7 +1225,7 @@ const OrderPage = ({ cart, setCart }) => {
     return <OrderConfirmation order={confirmation} onClose={() => { setConfirmation(null); setCart([]); }} />;
   }
   if (showCheckout) {
-    return <CheckoutFlow cart={cart} cartTotal={cartTotal} onBack={() => setShowCheckout(false)} onComplete={(order) => { setConfirmation(order); setShowCheckout(false); }} />;
+    return <CheckoutFlow cart={cart} cartTotal={cartTotal} user={user} onBack={() => setShowCheckout(false)} onComplete={(order) => { setConfirmation(order); setShowCheckout(false); }} />;
   }
 
   return (
@@ -1273,7 +1362,7 @@ const OrderPage = ({ cart, setCart }) => {
         </button>
       )}
 
-      {selectedDrink && <DrinkCustomizer drink={selectedDrink} onClose={() => setSelectedDrink(null)} onAdd={addToCart} />}
+      {selectedDrink && <DrinkCustomizer drink={selectedDrink} onClose={() => setSelectedDrink(null)} onAdd={addToCart} user={user} onSignIn={onSignIn} />}
     </div>
   );
 };
@@ -1467,6 +1556,335 @@ const EventsPage = () => {
 // ═══════════════════════════════════════════════════════
 // FOOTER
 // ═══════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+// AUTH MODAL (magic link sign in / join)
+// ═══════════════════════════════════════════════════════
+const AuthModal = ({ onClose }) => {
+  const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState('');
+
+  const submit = async () => {
+    setError('');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setError('Please enter a valid email.');
+      return;
+    }
+    setSending(true);
+    try {
+      await sendMagicLink(email, name);
+      setSent(true);
+    } catch (err) {
+      setError(err.message || 'Could not send the link. Please try again.');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content slide-up" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '440px' }}>
+        <button onClick={onClose} style={{ position: 'absolute', top: '12px', right: '12px', background: 'rgba(255,254,250,0.95)', border: 'none', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }} aria-label="Close">
+          <X size={20} color="#2A1810" />
+        </button>
+
+        <div style={{ padding: '36px 26px 30px 26px', textAlign: 'center' }}>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '12px' }}>
+            <InfinityHeart size={36} color="#2A1810" />
+          </div>
+
+          {sent ? (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
+                <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#F0E2C9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Mail size={26} color="#2A1810" />
+                </div>
+              </div>
+              <h2 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '28px', color: '#2A1810', margin: '0 0 10px 0', fontWeight: 500 }}>Check your email</h2>
+              <p style={{ fontFamily: '"Outfit", sans-serif', fontSize: '14px', color: '#5C3A21', lineHeight: 1.6, margin: 0 }}>
+                We sent a sign-in link to <strong>{email}</strong>. Tap it and you'll be signed in — no password needed.
+              </p>
+              <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '13px', color: '#5C3A21', marginTop: '16px' }}>
+                (Check your spam folder if it's not there in a minute.)
+              </p>
+            </>
+          ) : (
+            <>
+              <h2 style={{ fontFamily: '"Pinyon Script", cursive', fontSize: '40px', color: '#2A1810', margin: '0 0 4px 0', fontWeight: 400, lineHeight: 1 }}>Join the club</h2>
+              <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '16px', color: '#5C3A21', margin: '0 0 22px 0' }}>
+                Earn a stamp on every order. Your 11th drink is on us.
+              </p>
+
+              <div style={{ textAlign: 'left', marginBottom: '14px' }}>
+                <label style={{ fontFamily: '"Outfit", sans-serif', fontSize: '10px', letterSpacing: '0.18em', textTransform: 'uppercase', color: '#5C3A21', display: 'block', marginBottom: '4px' }}>Name (optional)</label>
+                <input value={name} onChange={(e) => setName(e.target.value)} placeholder="What should we call you?"
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '4px', border: '1.5px solid rgba(92,58,33,0.2)', background: '#FAF1E4', fontFamily: '"Cormorant Garamond", serif', fontSize: '16px', color: '#2A1810', outline: 'none', height: '44px', boxSizing: 'border-box' }} />
+              </div>
+              <div style={{ textAlign: 'left', marginBottom: '18px' }}>
+                <label style={{ fontFamily: '"Outfit", sans-serif', fontSize: '10px', letterSpacing: '0.18em', textTransform: 'uppercase', color: '#5C3A21', display: 'block', marginBottom: '4px' }}>Email *</label>
+                <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="you@email.com"
+                  onKeyDown={(e) => e.key === 'Enter' && submit()}
+                  style={{ width: '100%', padding: '10px 12px', borderRadius: '4px', border: '1.5px solid rgba(92,58,33,0.2)', background: '#FAF1E4', fontFamily: '"Cormorant Garamond", serif', fontSize: '16px', color: '#2A1810', outline: 'none', height: '44px', boxSizing: 'border-box' }} />
+              </div>
+
+              {error && (
+                <div style={{ background: 'rgba(232,85,122,0.1)', border: '1px solid rgba(232,85,122,0.3)', padding: '10px 12px', borderRadius: '4px', marginBottom: '14px', fontFamily: '"Outfit", sans-serif', fontSize: '13px', color: '#A83A56', textAlign: 'left' }}>
+                  {error}
+                </div>
+              )}
+
+              <button onClick={submit} disabled={sending}
+                style={{ width: '100%', background: sending ? '#5C3A21' : '#2A1810', color: '#FAF1E4', padding: '15px', border: 'none', borderRadius: '999px', fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, cursor: sending ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+                {sending ? <><Loader2 size={15} className="spin" /> Sending...</> : <>Send my sign-in link <ChevronRight size={14} /></>}
+              </button>
+              <p style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', color: '#5C3A21', opacity: 0.75, marginTop: '14px', lineHeight: 1.5 }}>
+                We'll email you a secure link — no password to remember. By joining you agree to receive your loyalty updates.
+              </p>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════
+// STAMP CARD (visual loyalty progress)
+// ═══════════════════════════════════════════════════════
+const StampCard = ({ balance }) => {
+  const earned = ((balance % STAMPS_FOR_REWARD) + STAMPS_FOR_REWARD) % STAMPS_FOR_REWARD;
+  const rewardsAvailable = Math.floor(balance / STAMPS_FOR_REWARD);
+  const filled = rewardsAvailable > 0 && earned === 0 ? STAMPS_FOR_REWARD : earned;
+
+  return (
+    <div style={{ background: 'linear-gradient(135deg, #2A1810, #5C3A21)', borderRadius: '12px', padding: '24px', color: '#FAF1E4', position: 'relative', overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', top: -20, right: -20, opacity: 0.1 }}>
+        <Coffee size={120} />
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '18px', position: 'relative' }}>
+        <div>
+          <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '10px', letterSpacing: '0.25em', textTransform: 'uppercase', opacity: 0.7 }}>Loyalty Card</div>
+          <div style={{ fontFamily: '"Pinyon Script", cursive', fontSize: '32px', lineHeight: 1, marginTop: '2px' }}>Iced Intentions</div>
+        </div>
+        <Gift size={24} style={{ opacity: 0.9 }} />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px', marginBottom: '18px', position: 'relative' }}>
+        {Array.from({ length: STAMPS_FOR_REWARD }).map((_, i) => (
+          <div key={i} style={{
+            aspectRatio: '1', borderRadius: '50%',
+            border: `1.5px solid ${i < filled ? '#E8A4B8' : 'rgba(250,241,228,0.3)'}`,
+            background: i < filled ? '#E8A4B8' : 'transparent',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'all 0.3s',
+          }}>
+            {i < filled
+              ? <Coffee size={16} color="#2A1810" />
+              : <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '14px', opacity: 0.4 }}>{i + 1}</span>}
+          </div>
+        ))}
+      </div>
+
+      <div style={{ position: 'relative' }}>
+        {rewardsAvailable > 0 ? (
+          <div style={{ background: '#E8A4B8', color: '#2A1810', borderRadius: '8px', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <Gift size={18} />
+            <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '13px', fontWeight: 600 }}>
+              {rewardsAvailable === 1 ? 'Free drink ready!' : `${rewardsAvailable} free drinks ready!`} Redeem at checkout.
+            </span>
+          </div>
+        ) : (
+          <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '16px', fontStyle: 'italic', opacity: 0.9 }}>
+            {STAMPS_FOR_REWARD - filled} more {STAMPS_FOR_REWARD - filled === 1 ? 'stamp' : 'stamps'} until your free drink ☕
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════
+// DASHBOARD PAGE
+// ═══════════════════════════════════════════════════════
+const DashboardPage = ({ user, setPage, onReorder }) => {
+  const [balance, setBalance] = useState(0);
+  const [history, setHistory] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [favorites, setFavorites] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = async () => {
+    if (!user) return;
+    setLoading(true);
+    const [b, h, o, f] = await Promise.all([
+      getLoyaltyBalance(user.id),
+      getLoyaltyHistory(user.id),
+      getMyOrders(user.id),
+      getFavorites(user.id),
+    ]);
+    setBalance(b); setHistory(h); setOrders(o); setFavorites(f);
+    setLoading(false);
+  };
+
+  useEffect(() => { refresh(); /* eslint-disable-next-line */ }, [user?.id]);
+
+  const handleRemoveFav = async (id) => {
+    try {
+      await removeFavorite(user.id, id);
+      setFavorites(favorites.filter(f => f.id !== id));
+    } catch (e) { console.warn(e); }
+  };
+
+  const fmtDate = (iso) => {
+    try { return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); }
+    catch { return iso; }
+  };
+
+  return (
+    <div style={{ background: '#FAF1E4', minHeight: '100vh' }}>
+      <div style={{ maxWidth: '760px', margin: '0 auto', padding: '32px 20px 80px 20px' }}>
+        <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: '12px' }}>
+          <div>
+            <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.3em', textTransform: 'uppercase', color: '#5C3A21' }}>Welcome back</span>
+            <h1 style={{ fontFamily: '"Pinyon Script", cursive', fontSize: 'clamp(40px, 10vw, 72px)', color: '#2A1810', margin: '4px 0 0 0', fontWeight: 400, lineHeight: 1 }}>
+              {displayName(user)}
+            </h1>
+          </div>
+          <button onClick={() => { signOut(); setPage('home'); }} data-compact
+            style={{ background: 'none', border: '1.5px solid rgba(92,58,33,0.25)', borderRadius: '999px', padding: '8px 14px', fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5C3A21', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0, marginBottom: '6px' }}>
+            <LogOut size={13} /> Sign out
+          </button>
+        </div>
+
+        {loading ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#5C3A21', fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '16px', padding: '40px 0' }}>
+            <Loader2 size={18} className="spin" /> Loading your card...
+          </div>
+        ) : (
+          <>
+            <div style={{ marginBottom: '28px' }}>
+              <StampCard balance={balance} />
+            </div>
+
+            <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+              <button onClick={() => setPage('order')}
+                style={{ background: '#2A1810', color: '#FAF1E4', padding: '14px 32px', borderRadius: '999px', border: 'none', fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                Order a drink <ChevronRight size={14} />
+              </button>
+            </div>
+
+            {/* FAVORITES */}
+            <section style={{ marginBottom: '32px' }}>
+              <h2 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '24px', color: '#2A1810', margin: '0 0 14px 0', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Heart size={18} fill="#E8A4B8" stroke="#E8A4B8" /> My Favorites
+              </h2>
+              {favorites.length === 0 ? (
+                <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '15px', color: '#5C3A21', background: '#FFFEFA', border: '1px solid rgba(92,58,33,0.1)', borderRadius: '8px', padding: '20px', margin: 0, textAlign: 'center' }}>
+                  No saved favorites yet. Tap the heart when customizing a drink to save your usual.
+                </p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {favorites.map(fav => (
+                    <div key={fav.id} style={{ background: '#FFFEFA', border: '1px solid rgba(92,58,33,0.1)', borderRadius: '8px', padding: '14px', display: 'flex', alignItems: 'center', gap: '14px' }}>
+                      <div style={{ flexShrink: 0 }}>
+                        <DrinkVisual gradient={fav.drink.gradient} size="xs" />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '18px', fontStyle: 'italic', fontWeight: 500, color: '#2A1810' }}>{fav.label || fav.drink.name}</div>
+                        <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', color: '#5C3A21', marginTop: '2px' }}>
+                          {fav.drink.name} · {fav.drink.size === 'L' ? 'Large' : 'Bucket'}
+                          {fav.drink.addOns?.length > 0 && ` · +${fav.drink.addOns.length} add-on${fav.drink.addOns.length > 1 ? 's' : ''}`}
+                          {fav.drink.notes && ` · "${fav.drink.notes}"`}
+                        </div>
+                      </div>
+                      <button onClick={() => onReorder(fav.drink)} data-compact title="Add to cart"
+                        style={{ background: '#2A1810', color: '#FAF1E4', border: 'none', borderRadius: '999px', padding: '8px 14px', fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                        <RotateCcw size={12} /> Order
+                      </button>
+                      <button onClick={() => handleRemoveFav(fav.id)} data-compact title="Remove favorite"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#5C3A21', padding: '6px', flexShrink: 0 }}>
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* RECENT ORDERS */}
+            <section style={{ marginBottom: '32px' }}>
+              <h2 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '24px', color: '#2A1810', margin: '0 0 14px 0', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <ShoppingBag size={18} /> Recent Orders
+              </h2>
+              {orders.length === 0 ? (
+                <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '15px', color: '#5C3A21', background: '#FFFEFA', border: '1px solid rgba(92,58,33,0.1)', borderRadius: '8px', padding: '20px', margin: 0, textAlign: 'center' }}>
+                  No orders yet. Your order history will appear here.
+                </p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {orders.map(o => (
+                    <div key={o.id} style={{ background: '#FFFEFA', border: '1px solid rgba(92,58,33,0.1)', borderRadius: '8px', padding: '14px 16px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '12px' }}>
+                        <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '16px', color: '#2A1810', fontWeight: 500 }}>
+                          {(o.items || []).map(it => `${it.qty}× ${it.name}`).join(', ')}
+                        </div>
+                        <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '16px', color: '#2A1810', fontWeight: 600, flexShrink: 0 }}>${Number(o.total).toFixed(2)}</div>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px' }}>
+                        <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', color: '#5C3A21' }}>
+                          {fmtDate(o.created_at)} · pickup {o.pickup_time_display}
+                        </span>
+                        <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '10px', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, color: o.payment_status === 'paid' ? '#3D7A4F' : '#5C3A21', background: o.payment_status === 'paid' ? 'rgba(61,122,79,0.1)' : 'rgba(92,58,33,0.08)', padding: '3px 8px', borderRadius: '999px' }}>
+                          {o.payment_status === 'paid' ? 'Paid' : o.payment_status === 'pending' ? 'Pending' : 'Pay at pickup'}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* STAMP HISTORY */}
+            <section>
+              <h2 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '24px', color: '#2A1810', margin: '0 0 14px 0', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Star size={18} /> Stamp Activity
+              </h2>
+              {history.length === 0 ? (
+                <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '15px', color: '#5C3A21', background: '#FFFEFA', border: '1px solid rgba(92,58,33,0.1)', borderRadius: '8px', padding: '20px', margin: 0, textAlign: 'center' }}>
+                  Your stamps will show up here as you order.
+                </p>
+              ) : (
+                <div style={{ background: '#FFFEFA', border: '1px solid rgba(92,58,33,0.1)', borderRadius: '8px', overflow: 'hidden' }}>
+                  {history.map((h, idx) => (
+                    <div key={h.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderBottom: idx < history.length - 1 ? '1px solid rgba(92,58,33,0.08)' : 'none' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: h.reason === 'redeemed' ? 'rgba(232,164,184,0.25)' : '#F0E2C9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {h.reason === 'redeemed' ? <Gift size={14} color="#A83A56" /> : <Coffee size={14} color="#2A1810" />}
+                        </div>
+                        <div>
+                          <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '13px', color: '#2A1810', fontWeight: 500 }}>
+                            {h.reason === 'redeemed' ? 'Free drink redeemed' : 'Stamp earned'}
+                          </div>
+                          <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', color: '#5C3A21' }}>{fmtDate(h.created_at)}</div>
+                        </div>
+                      </div>
+                      <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '18px', fontWeight: 600, color: h.delta > 0 ? '#3D7A4F' : '#A83A56' }}>
+                        {h.delta > 0 ? `+${h.delta}` : h.delta}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const Footer = ({ setPage }) => (
   <footer style={{ background: '#1A0F08', color: '#F0E2C9', padding: '48px 20px 28px 20px' }}>
     <div style={{ maxWidth: '1280px', margin: '0 auto' }}>
@@ -1517,20 +1935,58 @@ const Footer = ({ setPage }) => (
 export default function App() {
   const [page, setPage] = useState('home');
   const [cart, setCart] = useState([]);
+  const [user, setUser] = useState(null);
+  const [authOpen, setAuthOpen] = useState(false);
+  const [pendingReorder, setPendingReorder] = useState(null);
+
+  // Track auth state across the whole app.
+  useEffect(() => {
+    const unsub = onAuthChange((u) => setUser(u));
+    return unsub;
+  }, []);
 
   useEffect(() => { window.scrollTo({ top: 0, behavior: 'smooth' }); }, [page]);
 
   const cartCount = cart.reduce((s, i) => s + i.qty, 0);
 
+  // Re-order a saved favorite: add it straight to the cart and go to order page.
+  const handleReorder = (drink) => {
+    const sizePrice = drink.size === 'L' ? drink.priceL : drink.priceBucket;
+    const addOnsTotal = (drink.addOnsData || []).reduce((s, a) => s + a.price, 0);
+    const lineTotal = ((sizePrice || 0) + addOnsTotal) * (drink.qty || 1);
+    const cartItem = {
+      ...drink,
+      id: `${drink.id}-${Date.now()}`,
+      qty: drink.qty || 1,
+      lineTotal,
+    };
+    setCart(prev => [...prev, cartItem]);
+    setPage('order');
+  };
+
+  // If a signed-out user tries to reach the dashboard, prompt sign-in.
+  const goDashboard = () => {
+    if (user) setPage('dashboard');
+    else setAuthOpen(true);
+  };
+
+  // After sign-in, if they were trying to reach the dashboard, take them there.
+  useEffect(() => {
+    if (user && authOpen) { setAuthOpen(false); }
+  }, [user]); // eslint-disable-line
+
   return (
     <div style={{ background: '#FAF1E4', minHeight: '100vh', overflowX: 'hidden', maxWidth: '100%' }}>
-      <Nav page={page} setPage={setPage} cartCount={cartCount} />
+      <Nav page={page} setPage={setPage} cartCount={cartCount} user={user} onAccount={goDashboard} onSignIn={() => setAuthOpen(true)} />
       <div className="fade-in" key={page}>
         {page === 'home' && <HomePage setPage={setPage} />}
-        {page === 'order' && <OrderPage cart={cart} setCart={setCart} />}
+        {page === 'order' && <OrderPage cart={cart} setCart={setCart} user={user} onSignIn={() => setAuthOpen(true)} />}
         {page === 'events' && <EventsPage />}
+        {page === 'dashboard' && user && <DashboardPage user={user} setPage={setPage} onReorder={handleReorder} />}
+        {page === 'dashboard' && !user && <HomePage setPage={setPage} />}
       </div>
       <Footer setPage={setPage} />
+      {authOpen && <AuthModal onClose={() => setAuthOpen(false)} />}
     </div>
   );
 }
