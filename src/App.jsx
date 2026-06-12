@@ -1702,7 +1702,8 @@ const EventsPage = () => {
 // ═══════════════════════════════════════════════════════
 // AUTH MODAL (magic link sign in / join)
 // ═══════════════════════════════════════════════════════
-const AuthModal = ({ onClose }) => {
+const AuthModal = ({ onClose, initialMode = 'login' }) => {
+  const [mode, setMode] = useState(initialMode); // 'login' | 'join'
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [sending, setSending] = useState(false);
@@ -1717,7 +1718,9 @@ const AuthModal = ({ onClose }) => {
     }
     setSending(true);
     try {
-      await sendMagicLink(email, name);
+      // Same magic-link flow for both: Supabase signs in an existing user or
+      // creates the account if they're new. Name is only sent when joining.
+      await sendMagicLink(email, mode === 'join' ? name : '');
       setSent(true);
     } catch (err) {
       setError(err.message || 'Could not send the link. Please try again.');
@@ -1755,16 +1758,42 @@ const AuthModal = ({ onClose }) => {
             </>
           ) : (
             <>
-              <h2 style={{ fontFamily: '"Pinyon Script", cursive', fontSize: '40px', color: '#2A1810', margin: '0 0 4px 0', fontWeight: 400, lineHeight: 1 }}>Join the club</h2>
-              <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '16px', color: '#5C3A21', margin: '0 0 22px 0' }}>
-                Earn a stamp on every order. Your 11th drink is on us.
-              </p>
-
-              <div style={{ textAlign: 'left', marginBottom: '14px' }}>
-                <label style={{ fontFamily: '"Outfit", sans-serif', fontSize: '10px', letterSpacing: '0.18em', textTransform: 'uppercase', color: '#5C3A21', display: 'block', marginBottom: '4px' }}>Name (optional)</label>
-                <input value={name} onChange={(e) => setName(e.target.value)} placeholder="What should we call you?"
-                  style={{ width: '100%', padding: '10px 12px', borderRadius: '4px', border: '1.5px solid rgba(92,58,33,0.2)', background: '#FAF1E4', fontFamily: '"Cormorant Garamond", serif', fontSize: '16px', color: '#2A1810', outline: 'none', height: '44px', boxSizing: 'border-box' }} />
+              {/* Log in / Join toggle */}
+              <div style={{ display: 'flex', background: '#F0E2C9', borderRadius: '999px', padding: '4px', marginBottom: '22px' }}>
+                <button onClick={() => { setMode('login'); setError(''); }} data-compact
+                  style={{ flex: 1, padding: '9px', borderRadius: '999px', border: 'none', cursor: 'pointer', background: mode === 'login' ? '#2A1810' : 'transparent', color: mode === 'login' ? '#FAF1E4' : '#5C3A21', fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 500, transition: 'all 0.2s' }}>
+                  Log In
+                </button>
+                <button onClick={() => { setMode('join'); setError(''); }} data-compact
+                  style={{ flex: 1, padding: '9px', borderRadius: '999px', border: 'none', cursor: 'pointer', background: mode === 'join' ? '#2A1810' : 'transparent', color: mode === 'join' ? '#FAF1E4' : '#5C3A21', fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 500, transition: 'all 0.2s' }}>
+                  Join
+                </button>
               </div>
+
+              {mode === 'join' ? (
+                <>
+                  <h2 style={{ fontFamily: '"Pinyon Script", cursive', fontSize: '40px', color: '#2A1810', margin: '0 0 4px 0', fontWeight: 400, lineHeight: 1 }}>Join the club</h2>
+                  <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '16px', color: '#5C3A21', margin: '0 0 22px 0' }}>
+                    Earn a stamp on every order. Your 11th drink is on us.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h2 style={{ fontFamily: '"Pinyon Script", cursive', fontSize: '40px', color: '#2A1810', margin: '0 0 4px 0', fontWeight: 400, lineHeight: 1 }}>Welcome back</h2>
+                  <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '16px', color: '#5C3A21', margin: '0 0 22px 0' }}>
+                    Enter your email and we'll send your sign-in link.
+                  </p>
+                </>
+              )}
+
+              {/* Name only matters when joining */}
+              {mode === 'join' && (
+                <div style={{ textAlign: 'left', marginBottom: '14px' }}>
+                  <label style={{ fontFamily: '"Outfit", sans-serif', fontSize: '10px', letterSpacing: '0.18em', textTransform: 'uppercase', color: '#5C3A21', display: 'block', marginBottom: '4px' }}>Name (optional)</label>
+                  <input value={name} onChange={(e) => setName(e.target.value)} placeholder="What should we call you?"
+                    style={{ width: '100%', padding: '10px 12px', borderRadius: '4px', border: '1.5px solid rgba(92,58,33,0.2)', background: '#FAF1E4', fontFamily: '"Cormorant Garamond", serif', fontSize: '16px', color: '#2A1810', outline: 'none', height: '44px', boxSizing: 'border-box' }} />
+                </div>
+              )}
               <div style={{ textAlign: 'left', marginBottom: '18px' }}>
                 <label style={{ fontFamily: '"Outfit", sans-serif', fontSize: '10px', letterSpacing: '0.18em', textTransform: 'uppercase', color: '#5C3A21', display: 'block', marginBottom: '4px' }}>Email *</label>
                 <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="you@email.com"
@@ -1780,10 +1809,14 @@ const AuthModal = ({ onClose }) => {
 
               <button onClick={submit} disabled={sending}
                 style={{ width: '100%', background: sending ? '#5C3A21' : '#2A1810', color: '#FAF1E4', padding: '15px', border: 'none', borderRadius: '999px', fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, cursor: sending ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
-                {sending ? <><Loader2 size={15} className="spin" /> Sending...</> : <>Send my sign-in link <ChevronRight size={14} /></>}
+                {sending
+                  ? <><Loader2 size={15} className="spin" /> Sending...</>
+                  : <>{mode === 'join' ? 'Send my sign-in link' : 'Send my log-in link'} <ChevronRight size={14} /></>}
               </button>
               <p style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', color: '#5C3A21', opacity: 0.75, marginTop: '14px', lineHeight: 1.5 }}>
-                We'll email you a secure link — no password to remember. By joining you agree to receive your loyalty updates.
+                {mode === 'join'
+                  ? "We'll email you a secure link — no password to remember. By joining you agree to receive your loyalty updates."
+                  : "We'll email you a secure link — no password to remember."}
               </p>
             </>
           )}
