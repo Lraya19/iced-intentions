@@ -129,7 +129,7 @@ export async function tokenize(paymentMethod) {
 
 // Calls our Supabase Edge Function to charge the tokenized card.
 // Returns { success, paymentId, receiptUrl, status } or throws.
-export async function chargePayment({ sourceId, amount, orderId, userId, buyerEmail, note }) {
+export async function chargePayment({ sourceId, amount, orderId, userId, redeem, items, buyerEmail, note }) {
   const res = await fetch(`${SUPABASE_URL}/functions/v1/process-payment`, {
     method: "POST",
     headers: {
@@ -137,7 +137,7 @@ export async function chargePayment({ sourceId, amount, orderId, userId, buyerEm
       "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
       "apikey": SUPABASE_ANON_KEY,
     },
-    body: JSON.stringify({ sourceId, amount, orderId, userId, buyerEmail, note }),
+    body: JSON.stringify({ sourceId, amount, orderId, userId, redeem, items, buyerEmail, note }),
   });
 
   let data;
