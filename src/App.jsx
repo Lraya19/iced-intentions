@@ -39,19 +39,19 @@ const MENU = {
     title: 'Matcha',
     note: 'All matchas made with oatmilk',
     items: [
-      { id: 'matcha-verdi', name: 'Matcha Verdí', desc: 'Pure ceremonial-grade matcha, oatmilk, kissed with vanilla', priceL: 9.50, priceBucket: 17.00, gradient: 'linear-gradient(180deg, #F5F0DC 0%, #B5C99A 50%, #6B8E4E 100%)' },
-      { id: 'matcha-besitos', name: 'Matcha Besitos', desc: 'Matcha layered with Biscoff cookie crumble & soft top', priceL: 9.50, priceBucket: 17.00, gradient: 'linear-gradient(180deg, #E8C896 0%, #B5C99A 40%, #6B8E4E 100%)' },
-      { id: 'matcha-blanqui', name: 'Matcha Blanquí', desc: 'White chocolate matcha dream, silky and sweet', priceL: 9.50, priceBucket: 17.00, gradient: 'linear-gradient(180deg, #FFF8E7 0%, #D4DEAB 50%, #8FA968 100%)' },
-      { id: 'matcha-rosa', name: 'Matcha Rosa', desc: 'Strawberry compote pooled beneath jade matcha', priceL: 9.50, priceBucket: 17.00, gradient: 'linear-gradient(180deg, #B5C99A 0%, #B5C99A 45%, #FFE4D6 60%, #C8345A 100%)' },
+      { id: 'matcha-verdi', photo: '/drinks/matcha-verdi.jpeg', name: 'Matcha Verdí', desc: 'Pure ceremonial-grade matcha, oatmilk, kissed with vanilla', priceL: 9.50, priceBucket: 17.00, gradient: 'linear-gradient(180deg, #F5F0DC 0%, #B5C99A 50%, #6B8E4E 100%)' },
+      { id: 'matcha-besitos', photo: '/drinks/matcha-besitos.jpeg', name: 'Matcha Besitos', desc: 'Matcha layered with Biscoff cookie crumble & soft top', priceL: 9.50, priceBucket: 17.00, gradient: 'linear-gradient(180deg, #E8C896 0%, #B5C99A 40%, #6B8E4E 100%)' },
+      { id: 'matcha-blanqui', photo: '/drinks/matcha-blanqui.jpeg', name: 'Matcha Blanquí', desc: 'White chocolate matcha dream, silky and sweet', priceL: 9.50, priceBucket: 17.00, gradient: 'linear-gradient(180deg, #FFF8E7 0%, #D4DEAB 50%, #8FA968 100%)' },
+      { id: 'matcha-rosa', photo: '/drinks/matcha-rosa.jpeg', name: 'Matcha Rosa', desc: 'Strawberry compote pooled beneath jade matcha', priceL: 9.50, priceBucket: 17.00, gradient: 'linear-gradient(180deg, #B5C99A 0%, #B5C99A 45%, #FFE4D6 60%, #C8345A 100%)' },
     ],
   },
   lattes: {
     title: 'Lattes',
     items: [
-      { id: 'dulce-moonkiss', name: 'Dulce Moon-Kiss', desc: 'Espresso, vanilla cream, brown sugar, dusted cinnamon', priceL: 8.00, priceBucket: 15.00, gradient: 'linear-gradient(180deg, #F5E6D3 0%, #C8A57A 50%, #6B4423 100%)' },
-      { id: 'mornenita-mornings', name: 'Mornenita Mornings', desc: 'Velvet caramel ribbons, espresso, sea salt foam', priceL: 8.00, priceBucket: 15.00, gradient: 'linear-gradient(180deg, #FFF1DC 0%, #E8A85C 40%, #8B5E2C 100%)' },
-      { id: 'nube-blush', name: 'Nube Blush', desc: 'Rose-petal latte, oat foam, edible blossom', priceL: 8.00, priceBucket: 15.00, gradient: 'linear-gradient(180deg, #FFE4E1 0%, #E8A4B8 50%, #C18298 100%)' },
-      { id: 'besitos-brunette', name: 'Besitos Brunette', desc: 'Double espresso, dulce de leche, Biscoff crumble', priceL: 8.00, priceBucket: 15.00, gradient: 'linear-gradient(180deg, #D4A574 0%, #8B5E2C 50%, #4A2C17 100%)' },
+      { id: 'dulce-moonkiss', photo: '/drinks/dulce-moon-kiss.jpeg', name: 'Dulce Moon-Kiss', desc: 'Espresso, vanilla cream, brown sugar, dusted cinnamon', priceL: 8.00, priceBucket: 15.00, gradient: 'linear-gradient(180deg, #F5E6D3 0%, #C8A57A 50%, #6B4423 100%)' },
+      { id: 'mornenita-mornings', photo: '/drinks/mornenita-mornings.jpeg', name: 'Mornenita Mornings', desc: 'Velvet caramel ribbons, espresso, sea salt foam', priceL: 8.00, priceBucket: 15.00, gradient: 'linear-gradient(180deg, #FFF1DC 0%, #E8A85C 40%, #8B5E2C 100%)' },
+      { id: 'nube-blush', photo: '/drinks/nube-blush.jpeg', name: 'Nube Blush', desc: 'Rose-petal latte, oat foam, edible blossom', priceL: 8.00, priceBucket: 15.00, gradient: 'linear-gradient(180deg, #FFE4E1 0%, #E8A4B8 50%, #C18298 100%)' },
+      { id: 'besitos-brunette', photo: '/drinks/besitos-brunette.jpeg', name: 'Besitos Brunette', desc: 'Double espresso, dulce de leche, Biscoff crumble', priceL: 8.00, priceBucket: 15.00, gradient: 'linear-gradient(180deg, #D4A574 0%, #8B5E2C 50%, #4A2C17 100%)' },
     ],
   },
   refreshers: {
@@ -59,8 +59,8 @@ const MENU = {
     sizeNote: '32 oz / 24 oz',
     items: [
       { id: 'tropic-bonita', name: 'Tropic Bonita', desc: 'Mango, passionfruit, hibiscus lemonade', priceL: 8.00, priceBucket: 8.00, gradient: 'linear-gradient(180deg, #FFD4A3 0%, #FFA76C 50%, #E85D3C 100%)' },
-      { id: 'sunkissed-cielo', name: 'SunKissed Cielo', desc: 'Peach, guava, sparkling lemon clouds', priceL: 8.00, priceBucket: 8.00, gradient: 'linear-gradient(180deg, #FFE4B5 0%, #FFB87A 50%, #FF8B4A 100%)' },
-      { id: 'coquetta-crush', name: 'Coquetta Crush', desc: 'Strawberry-rose lemonade, coconut foam', priceL: 9.00, priceBucket: 9.00, gradient: 'linear-gradient(180deg, #FFF0F0 0%, #FFB8C8 50%, #E8557A 100%)' },
+      { id: 'sunkissed-cielo', photo: '/drinks/sunkissed-cielo.jpeg', name: 'SunKissed Cielo', desc: 'Peach, guava, sparkling lemon clouds', priceL: 8.00, priceBucket: 8.00, gradient: 'linear-gradient(180deg, #FFE4B5 0%, #FFB87A 50%, #FF8B4A 100%)' },
+      { id: 'coquetta-crush', photo: '/drinks/coquetta-crush.jpeg', name: 'Coquetta Crush', desc: 'Strawberry-rose lemonade, coconut foam', priceL: 9.00, priceBucket: 9.00, gradient: 'linear-gradient(180deg, #FFF0F0 0%, #FFB8C8 50%, #E8557A 100%)' },
       { id: 'summer-chula', name: 'Summer Chula', desc: 'Watermelon-lime, basil, chamoy rim', priceL: 9.00, priceBucket: 9.00, gradient: 'linear-gradient(180deg, #FFC8C8 0%, #FF7A8C 50%, #C73456 100%)' },
     ],
   },
@@ -69,7 +69,7 @@ const MENU = {
     items: [
       { id: 'paraiso-fuse', name: 'Paraíso Fuse', desc: 'Tropical paradise, coconut, pineapple lift', priceL: 8.00, priceBucket: 12.00, gradient: 'linear-gradient(180deg, #FFEBC4 0%, #FFD17A 50%, #FFA630 100%)' },
       { id: 'cremita-fuse', name: 'Cremita Fuse', desc: 'Horchata cream, cinnamon, energy boost', priceL: 8.00, priceBucket: 12.00, gradient: 'linear-gradient(180deg, #FFF5E1 0%, #F5DDB3 50%, #C9A86A 100%)' },
-      { id: 'azulita-fuse', name: 'Azulita Fuse', desc: 'Blue raspberry, coconut cream, pop rocks', priceL: 8.00, priceBucket: 12.00, gradient: 'linear-gradient(180deg, #B8F0E8 0%, #5DD4C5 50%, #2BA89A 100%)' },
+      { id: 'azulita-fuse', photo: '/drinks/azulita-fuse.jpeg', name: 'Azulita Fuse', desc: 'Blue raspberry, coconut cream, pop rocks', priceL: 8.00, priceBucket: 12.00, gradient: 'linear-gradient(180deg, #B8F0E8 0%, #5DD4C5 50%, #2BA89A 100%)' },
       { id: 'verde-fuse', name: 'Verde Fuse', desc: 'Kiwi, lime, mint, vibrant green energy', priceL: 8.00, priceBucket: 12.00, gradient: 'linear-gradient(180deg, #DEF5C9 0%, #95D478 50%, #4A9B2D 100%)' },
     ],
   },
@@ -163,8 +163,29 @@ const Ornament = ({ width = 200, color = '#5C3A21' }) => (
   </div>
 );
 
-const DrinkVisual = ({ gradient, size = 'md' }) => {
+const DrinkVisual = ({ gradient, photo, size = 'md' }) => {
   const dims = size === 'xs' ? { w: 56, h: 90 } : size === 'sm' ? { w: 80, h: 130 } : size === 'lg' ? { w: 180, h: 280 } : { w: 130, h: 200 };
+
+  // When a real photo exists, show it in a softly-rounded frame (object-fit
+  // cover keeps the cup centered). Falls back to the stylized gradient cup.
+  if (photo) {
+    return (
+      <div style={{ position: 'relative', width: dims.w, height: dims.h, display: 'inline-block' }}>
+        <img
+          src={photo}
+          alt=""
+          loading="lazy"
+          style={{
+            width: '100%', height: '100%', objectFit: 'cover',
+            borderRadius: `${dims.w * 0.12}px`,
+            boxShadow: '0 6px 20px rgba(42, 24, 16, 0.18)',
+            display: 'block',
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
     <div style={{ position: 'relative', width: dims.w, height: dims.h, display: 'inline-block' }}>
       <div
@@ -445,7 +466,7 @@ const HomePage = ({ setPage }) => {
               <div
                 key={drink.id}
                 onClick={() => setPage('order')}
-                style={{ background: '#FFFEFA', padding: '24px 16px', borderRadius: '4px', textAlign: 'center', position: 'relative', transition: 'transform 0.4s, box-shadow 0.4s', cursor: 'pointer', boxShadow: '0 1px 3px rgba(42, 24, 16, 0.06)', border: '1px solid rgba(92, 58, 33, 0.08)' }}
+                style={{ background: '#FFFEFA', padding: '0', borderRadius: '12px', textAlign: 'center', position: 'relative', transition: 'transform 0.4s, box-shadow 0.4s', cursor: 'pointer', boxShadow: '0 1px 3px rgba(42, 24, 16, 0.06)', border: '1px solid rgba(92, 58, 33, 0.08)', overflow: 'hidden' }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.transform = 'translateY(-6px)';
                   e.currentTarget.style.boxShadow = '0 12px 32px rgba(42, 24, 16, 0.12)';
@@ -455,13 +476,21 @@ const HomePage = ({ setPage }) => {
                   e.currentTarget.style.boxShadow = '0 1px 3px rgba(42, 24, 16, 0.06)';
                 }}
               >
-                <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '10px', letterSpacing: '0.25em', textTransform: 'uppercase', color: '#E8A4B8', fontWeight: 600 }}>{drink.category}</span>
-                <div style={{ display: 'flex', justifyContent: 'center', margin: '16px 0' }}>
-                  <DrinkVisual gradient={drink.gradient} size="md" />
+                <div style={{ position: 'relative', width: '100%', aspectRatio: '4 / 5', overflow: 'hidden', background: drink.photo ? '#EDE4D3' : drink.gradient }}>
+                  {drink.photo ? (
+                    <img src={drink.photo} alt={drink.name} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                  ) : (
+                    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <DrinkVisual gradient={drink.gradient} size="md" />
+                    </div>
+                  )}
+                  <span style={{ position: 'absolute', top: '12px', left: '12px', fontFamily: '"Outfit", sans-serif', fontSize: '9px', letterSpacing: '0.2em', textTransform: 'uppercase', color: '#2A1810', fontWeight: 600, background: 'rgba(255,254,250,0.92)', backdropFilter: 'blur(6px)', borderRadius: '999px', padding: '5px 10px' }}>{drink.category}</span>
                 </div>
-                <h3 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '22px', color: '#2A1810', margin: '0 0 8px 0', fontWeight: 500, fontStyle: 'italic' }}>{drink.name}</h3>
-                <p style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', color: '#5C3A21', lineHeight: 1.5, margin: '0 0 14px 0', minHeight: '36px' }}>{drink.desc}</p>
-                <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '18px', color: '#2A1810', fontWeight: 600 }}>${drink.priceL.toFixed(2)}</div>
+                <div style={{ padding: '18px 16px 22px 16px' }}>
+                  <h3 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '22px', color: '#2A1810', margin: '0 0 8px 0', fontWeight: 500, fontStyle: 'italic' }}>{drink.name}</h3>
+                  <p style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', color: '#5C3A21', lineHeight: 1.5, margin: '0 0 14px 0', minHeight: '36px' }}>{drink.desc}</p>
+                  <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '18px', color: '#2A1810', fontWeight: 600 }}>${drink.priceL.toFixed(2)}</div>
+                </div>
               </div>
             ))}
           </div>
@@ -619,6 +648,7 @@ const DrinkCustomizer = ({ drink, onClose, onAdd, user, onSignIn }) => {
     desc: drink.desc,
     category: drink.category,
     gradient: drink.gradient,
+    photo: drink.photo || null,
     priceL: drink.priceL,
     priceBucket: drink.priceBucket,
     size,
@@ -648,8 +678,12 @@ const DrinkCustomizer = ({ drink, onClose, onAdd, user, onSignIn }) => {
         <button onClick={onClose} style={{ position: 'absolute', top: '12px', right: '12px', background: 'rgba(255, 254, 250, 0.95)', border: 'none', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }} aria-label="Close">
           <X size={20} color="#2A1810" />
         </button>
-        <div style={{ background: drink.gradient, padding: '32px 20px 16px 20px', display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'relative' }}>
-          <DrinkVisual gradient={drink.gradient} size="md" />
+        <div style={{ background: drink.photo ? '#EDE4D3' : drink.gradient, padding: drink.photo ? '0' : '32px 20px 16px 20px', display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'relative', overflow: 'hidden' }}>
+          {drink.photo ? (
+            <img src={drink.photo} alt={drink.name} style={{ width: '100%', height: '240px', objectFit: 'cover', objectPosition: 'center 35%', display: 'block' }} />
+          ) : (
+            <DrinkVisual gradient={drink.gradient} size="md" />
+          )}
         </div>
         <div style={{ padding: '24px 20px' }}>
           <h2 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: 'clamp(26px, 6vw, 32px)', color: '#2A1810', margin: '0 0 8px 0', fontWeight: 500, fontStyle: 'italic' }}>{drink.name}</h2>
@@ -757,6 +791,39 @@ const CheckoutFlow = ({ cart, cartTotal, user, onBack, onComplete }) => {
   const [cardObj, setCardObj] = useState(null);
   const [applePayObj, setApplePayObj] = useState(null);
   const cardMounted = useRef(false);
+
+  // ── Loyalty redemption state ──
+  const [loyaltyBalance, setLoyaltyBalance] = useState(0);
+  const [redeemOn, setRedeemOn] = useState(false);
+
+  // Fetch the signed-in customer's stamp balance when checkout opens.
+  useEffect(() => {
+    let cancelled = false;
+    if (user) {
+      getLoyaltyBalance(user.id).then(b => { if (!cancelled) setLoyaltyBalance(b); });
+    } else {
+      setLoyaltyBalance(0); setRedeemOn(false);
+    }
+    return () => { cancelled = true; };
+  }, [user]);
+
+  const canRedeem = Boolean(user) && loyaltyBalance >= STAMPS_FOR_REWARD;
+
+  // Redemption is online-payment only; clear it if they switch to pay-at-pickup.
+  useEffect(() => {
+    if (payMode !== 'now' && redeemOn) setRedeemOn(false);
+  }, [payMode]); // eslint-disable-line
+
+  // The free drink = the cheapest single drink (base price) in the cart.
+  const cheapestDrinkPrice = useMemo(() => {
+    if (cart.length === 0) return 0;
+    return Math.min(...cart.map(i => i.basePrice));
+  }, [cart]);
+
+  // Effective discount + total when redemption is toggled on.
+  const discount = (canRedeem && redeemOn) ? cheapestDrinkPrice : 0;
+  const effectiveTotal = Math.max(0, cartTotal - discount);
+  const isFreeOrder = effectiveTotal <= 0 && (canRedeem && redeemOn);
 
   const days = useMemo(() => getNextSevenDays(), []);
   const allSlots = useMemo(() => generateTimeSlots(), []);
@@ -883,16 +950,20 @@ const CheckoutFlow = ({ cart, cartTotal, user, onBack, onComplete }) => {
     }
   };
 
-  // ── PAY NOW path (card or Apple Pay) ──
+  // ── PAY NOW path (card or Apple Pay), and free-redemption orders ──
   const handlePayNow = async (paymentMethod) => {
     if (!validate()) return;
-    if (!paymentMethod) { setError('Payment form is still loading. One moment...'); return; }
+    // A free order (reward covers the whole cart) needs no card.
+    if (!isFreeOrder && !paymentMethod) { setError('Payment form is still loading. One moment...'); return; }
 
     setSubmitting(true);
     setError('');
     try {
-      // 1. Tokenize the card / Apple Pay into a one-time nonce.
-      const token = await tokenize(paymentMethod);
+      // 1. Tokenize the card (skipped entirely for a fully-free order).
+      let token = null;
+      if (!isFreeOrder) {
+        token = await tokenize(paymentMethod);
+      }
 
       // 2. Pre-generate the order id so the charge + order row match.
       const orderId = `ord_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -900,8 +971,8 @@ const CheckoutFlow = ({ cart, cartTotal, user, onBack, onComplete }) => {
       // 3. Book the slot BEFORE charging (don't charge for a slot that's gone).
       await bookSlot(selectedDate, selectedTime, customerInfo.name);
 
-      // 4. Insert the order as 'pending' (single INSERT; RLS allows insert only).
-      //    The Edge Function will flip it to 'paid' server-side after charging.
+      // 4. Insert the order as 'pending'. The Edge Function flips it to 'paid'
+      //    server-side after charging, and stores the post-discount total.
       const baseOrder = {
         id: orderId,
         placedAt: new Date().toISOString(),
@@ -911,28 +982,32 @@ const CheckoutFlow = ({ cart, cartTotal, user, onBack, onComplete }) => {
         pickupTimeDisplay: allSlots.find(s => s.time === selectedTime)?.display,
         customer: customerInfo,
         items: cart,
-        total: cartTotal,
+        total: cartTotal, // pre-discount; Edge Function records the charged amount
         paymentStatus: 'pending',
         squarePaymentId: null,
         squareReceiptUrl: null,
       };
       await saveOrder(orderId, baseOrder);
 
-      // 5. Charge via the Edge Function (updates the order row to 'paid').
+      // 5. Charge via the Edge Function. We send the FULL total + redeem flag +
+      //    line items; the server verifies eligibility and computes the discount.
       const result = await chargePayment({
         sourceId: token,
         amount: cartTotal,
         orderId,
         userId: user?.id || null,
+        redeem: (canRedeem && redeemOn),
+        items: cart.map(i => ({ drinkId: i.drinkId, size: i.size, qty: i.qty })),
         buyerEmail: customerInfo.email,
         note: `Iced Intentions — ${cart.length} item(s), pickup ${selectedDate} ${selectedTime}`,
       });
 
       // 6. Build the final order object for the confirmation screen + email.
-      //    (We do NOT call saveOrder again — RLS blocks update from the client;
-      //     the Edge Function already persisted the paid status.)
       const order = {
         ...baseOrder,
+        total: result.amountCharged != null ? result.amountCharged : effectiveTotal,
+        discountApplied: result.discountApplied || 0,
+        redeemed: Boolean(result.redeemed),
         paymentStatus: 'paid',
         squarePaymentId: result.paymentId,
         squareReceiptUrl: result.receiptUrl,
@@ -959,8 +1034,13 @@ const CheckoutFlow = ({ cart, cartTotal, user, onBack, onComplete }) => {
 
   // Router for the main button.
   const handleSubmit = () => {
-    if (payMode === 'now') handlePayNow(cardObj);
-    else handlePayAtPickup();
+    if (payMode === 'now') {
+      // Free reward order needs no card; otherwise use the mounted card.
+      if (isFreeOrder) handlePayNow(null);
+      else handlePayNow(cardObj);
+    } else {
+      handlePayAtPickup();
+    }
   };
 
   return (
@@ -1079,9 +1159,10 @@ const CheckoutFlow = ({ cart, cartTotal, user, onBack, onComplete }) => {
               </div>
             )}
 
-            {/* Square card form mounts here */}
+            {/* Square card form stays mounted (just hidden) so toggling the
+                reward on/off never destroys the Square iframe. */}
             {payMode === 'now' && (
-              <div>
+              <div style={{ display: isFreeOrder ? 'none' : 'block' }}>
                 <div id="si-card-container" style={{ minHeight: '52px', marginBottom: '10px' }} />
                 {!cardReady && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#5C3A21', fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '14px' }}>
@@ -1094,11 +1175,47 @@ const CheckoutFlow = ({ cart, cartTotal, user, onBack, onComplete }) => {
               </div>
             )}
 
+            {payMode === 'now' && isFreeOrder && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#F0E2C9', borderRadius: '8px', padding: '14px 16px' }}>
+                <Gift size={20} color="#2A1810" />
+                <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '16px', fontStyle: 'italic', color: '#2A1810' }}>
+                  Your reward covers this order — no payment needed!
+                </span>
+              </div>
+            )}
+
             {payMode === 'pickup' && (
               <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '14px', color: '#5C3A21', margin: '14px 0 0 0' }}>
                 Pay with card or cash when you arrive. Your order will be ready at your pickup time.
               </p>
             )}
+          </div>
+        )}
+
+        {/* ── LOYALTY REWARD REDEMPTION (online payment only) ── */}
+        {canRedeem && payMode === 'now' && (
+          <div style={{ background: redeemOn ? 'linear-gradient(135deg, #2A1810, #5C3A21)' : '#FFFEFA', padding: '18px 20px', borderRadius: '12px', marginBottom: '16px', border: redeemOn ? 'none' : '1.5px solid #E8A4B8', transition: 'all 0.3s' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
+                <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: redeemOn ? '#E8A4B8' : '#F0E2C9', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Gift size={20} color="#2A1810" />
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '19px', fontWeight: 600, color: redeemOn ? '#FAF1E4' : '#2A1810', fontStyle: 'italic' }}>
+                    Free drink reward
+                  </div>
+                  <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', color: redeemOn ? 'rgba(250,241,228,0.8)' : '#5C3A21' }}>
+                    {redeemOn
+                      ? `Your cheapest drink is on us (−$${cheapestDrinkPrice.toFixed(2)})`
+                      : `You have ${loyaltyBalance} stamps — redeem one free drink`}
+                  </div>
+                </div>
+              </div>
+              <button onClick={() => setRedeemOn(!redeemOn)} data-compact
+                style={{ flexShrink: 0, background: redeemOn ? '#E8A4B8' : '#2A1810', border: 'none', borderRadius: '999px', padding: '10px 18px', fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, cursor: 'pointer', color: redeemOn ? '#2A1810' : '#FAF1E4' }}>
+                {redeemOn ? 'Remove' : 'Redeem'}
+              </button>
+            </div>
           </div>
         )}
 
@@ -1113,10 +1230,18 @@ const CheckoutFlow = ({ cart, cartTotal, user, onBack, onComplete }) => {
                 <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '15px', color: '#2A1810', fontWeight: 600, flexShrink: 0 }}>${item.lineTotal.toFixed(2)}</span>
               </div>
             ))}
+            {discount > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '12px', paddingTop: '4px' }}>
+                <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '15px', color: '#A83A56', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Gift size={13} /> Free drink reward
+                </span>
+                <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '15px', color: '#A83A56', fontWeight: 600, flexShrink: 0 }}>−${discount.toFixed(2)}</span>
+              </div>
+            )}
           </div>
           <div style={{ borderTop: '1px solid rgba(92, 58, 33, 0.2)', marginTop: '14px', paddingTop: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
             <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.2em', textTransform: 'uppercase', color: '#5C3A21' }}>Total</span>
-            <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '28px', color: '#2A1810', fontWeight: 600 }}>${cartTotal.toFixed(2)}</span>
+            <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '28px', color: '#2A1810', fontWeight: 600 }}>${effectiveTotal.toFixed(2)}</span>
           </div>
         </div>
 
@@ -1126,12 +1251,14 @@ const CheckoutFlow = ({ cart, cartTotal, user, onBack, onComplete }) => {
           </div>
         )}
 
-        <button onClick={handleSubmit} disabled={submitting || (payMode === 'now' && !cardReady)}
-          style={{ width: '100%', background: submitting ? '#5C3A21' : '#2A1810', color: '#FAF1E4', padding: '18px', border: 'none', borderRadius: '999px', fontFamily: '"Outfit", sans-serif', fontSize: '13px', letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, cursor: (submitting || (payMode === 'now' && !cardReady)) ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', opacity: (payMode === 'now' && !cardReady) ? 0.6 : 1 }}>
+        <button onClick={handleSubmit} disabled={submitting || (payMode === 'now' && !isFreeOrder && !cardReady)}
+          style={{ width: '100%', background: submitting ? '#5C3A21' : '#2A1810', color: '#FAF1E4', padding: '18px', border: 'none', borderRadius: '999px', fontFamily: '"Outfit", sans-serif', fontSize: '13px', letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, cursor: (submitting || (payMode === 'now' && !isFreeOrder && !cardReady)) ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', opacity: (payMode === 'now' && !isFreeOrder && !cardReady) ? 0.6 : 1 }}>
           {submitting
-            ? <><Loader2 size={16} className="spin" /> {payMode === 'now' ? 'Processing Payment...' : 'Placing Order...'}</>
+            ? <><Loader2 size={16} className="spin" /> {payMode === 'now' ? 'Processing...' : 'Placing Order...'}</>
             : payMode === 'now'
-              ? <><Lock size={14} /> Pay ${cartTotal.toFixed(2)}</>
+              ? (isFreeOrder
+                  ? <><Gift size={15} /> Place Free Order</>
+                  : <><Lock size={14} /> Pay ${effectiveTotal.toFixed(2)}</>)
               : <>Place Order <Heart size={14} fill="#E8A4B8" stroke="#E8A4B8" /></>}
         </button>
 
@@ -1214,7 +1341,7 @@ const OrderPage = ({ cart, setCart, user, onSignIn }) => {
     const lineTotal = (basePrice + addOnTotal) * qty;
     setCart([...cart, {
       id: `${drink.id}-${Date.now()}`, drinkId: drink.id, name: drink.name,
-      gradient: drink.gradient, size, addOns, qty, notes, basePrice, lineTotal,
+      gradient: drink.gradient, photo: drink.photo || null, size, addOns, qty, notes, basePrice, lineTotal,
     }]);
     setSelectedDrink(null);
   };
@@ -1257,29 +1384,45 @@ const OrderPage = ({ cart, setCart, user, onSignIn }) => {
             <div className="grid-2-sm">
               {MENU[activeCategory].items.map(drink => (
                 <button key={drink.id} onClick={() => setSelectedDrink(drink)}
-                  style={{ background: '#FFFEFA', border: '1px solid rgba(92, 58, 33, 0.1)', borderRadius: '6px', padding: '14px', textAlign: 'left', cursor: 'pointer', display: 'flex', gap: '12px', alignItems: 'center', transition: 'all 0.3s', boxShadow: '0 1px 3px rgba(42, 24, 16, 0.04)', width: '100%', maxWidth: '100%', minWidth: 0, overflow: 'hidden', whiteSpace: 'normal' }}
+                  style={{ background: '#FFFEFA', border: '1px solid rgba(92, 58, 33, 0.1)', borderRadius: '12px', padding: '0', textAlign: 'left', cursor: 'pointer', display: 'flex', flexDirection: 'column', transition: 'all 0.3s', boxShadow: '0 1px 3px rgba(42, 24, 16, 0.04)', width: '100%', maxWidth: '100%', minWidth: 0, overflow: 'hidden' }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.borderColor = '#E8A4B8';
-                    e.currentTarget.style.boxShadow = '0 8px 24px rgba(42, 24, 16, 0.1)';
+                    e.currentTarget.style.boxShadow = '0 12px 28px rgba(42, 24, 16, 0.12)';
+                    e.currentTarget.style.transform = 'translateY(-2px)';
                   }}
                   onMouseLeave={(e) => {
                     e.currentTarget.style.borderColor = 'rgba(92, 58, 33, 0.1)';
                     e.currentTarget.style.boxShadow = '0 1px 3px rgba(42, 24, 16, 0.04)';
+                    e.currentTarget.style.transform = 'translateY(0)';
                   }}>
-                  <div style={{ flexShrink: 0 }}>
-                    <DrinkVisual gradient={drink.gradient} size="xs" />
+                  {/* Hero image (real photo if available, else gradient) */}
+                  <div style={{ position: 'relative', width: '100%', aspectRatio: '4 / 3', overflow: 'hidden', background: drink.photo ? '#EDE4D3' : drink.gradient }}>
+                    {drink.photo ? (
+                      <img src={drink.photo} alt={drink.name} loading="lazy"
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                    ) : (
+                      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <DrinkVisual gradient={drink.gradient} size="sm" />
+                      </div>
+                    )}
+                    {/* price chip */}
+                    <div style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(255, 254, 250, 0.94)', backdropFilter: 'blur(6px)', borderRadius: '999px', padding: '5px 12px', fontFamily: '"Cormorant Garamond", serif', fontSize: '15px', fontWeight: 600, color: '#2A1810', boxShadow: '0 2px 8px rgba(42,24,16,0.12)' }}>
+                      ${drink.priceL.toFixed(2)}
+                    </div>
                   </div>
-                  <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
-                    <h3 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '18px', color: '#2A1810', margin: '0 0 4px 0', fontWeight: 500, fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{drink.name}</h3>
-                    <p style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', color: '#5C3A21', lineHeight: 1.4, margin: '0 0 8px 0', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'break-word' }}>{drink.desc}</p>
-                    <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '14px', color: '#2A1810', fontWeight: 600, display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'baseline' }}>
-                      <span>${drink.priceL.toFixed(2)} <span style={{ fontSize: '10px', fontFamily: '"Outfit", sans-serif', fontWeight: 400, color: '#5C3A21', letterSpacing: '0.08em', textTransform: 'uppercase' }}>L</span></span>
-                      {drink.priceBucket !== drink.priceL && (
-                        <>
-                          <span style={{ color: 'rgba(92, 58, 33, 0.3)' }}>·</span>
-                          <span>${drink.priceBucket.toFixed(2)} <span style={{ fontSize: '10px', fontFamily: '"Outfit", sans-serif', fontWeight: 400, color: '#5C3A21', letterSpacing: '0.08em', textTransform: 'uppercase' }}>Bucket</span></span>
-                        </>
-                      )}
+                  {/* Text */}
+                  <div style={{ padding: '14px 16px 16px 16px', minWidth: 0 }}>
+                    <h3 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '20px', color: '#2A1810', margin: '0 0 5px 0', fontWeight: 500, fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{drink.name}</h3>
+                    <p style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11.5px', color: '#5C3A21', lineHeight: 1.45, margin: '0 0 10px 0', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'break-word', minHeight: '33px' }}>{drink.desc}</p>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                      <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '13px', color: '#5C3A21', fontWeight: 500 }}>
+                        {drink.priceBucket !== drink.priceL
+                          ? <>Large · <span style={{ color: '#2A1810', fontWeight: 600 }}>${drink.priceBucket.toFixed(2)}</span> bucket</>
+                          : <>Single size</>}
+                      </div>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#2A1810', color: '#FAF1E4', borderRadius: '999px', padding: '6px 12px', fontFamily: '"Outfit", sans-serif', fontSize: '10px', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 500, flexShrink: 0 }}>
+                        <Plus size={11} /> Add
+                      </span>
                     </div>
                   </div>
                 </button>
@@ -1789,7 +1932,7 @@ const DashboardPage = ({ user, setPage, onReorder }) => {
                   {favorites.map(fav => (
                     <div key={fav.id} style={{ background: '#FFFEFA', border: '1px solid rgba(92,58,33,0.1)', borderRadius: '8px', padding: '14px', display: 'flex', alignItems: 'center', gap: '14px' }}>
                       <div style={{ flexShrink: 0 }}>
-                        <DrinkVisual gradient={fav.drink.gradient} size="xs" />
+                        <DrinkVisual gradient={fav.drink.gradient} photo={fav.drink.photo} size="xs" />
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '18px', fontStyle: 'italic', fontWeight: 500, color: '#2A1810' }}>{fav.label || fav.drink.name}</div>
