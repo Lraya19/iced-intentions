@@ -673,19 +673,24 @@ const DrinkCustomizer = ({ drink, onClose, onAdd, user, onSignIn }) => {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content slide-up" onClick={(e) => e.stopPropagation()}>
-        <button onClick={onClose} style={{ position: 'absolute', top: '12px', right: '12px', background: 'rgba(255, 254, 250, 0.95)', border: 'none', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }} aria-label="Close">
+    <div className="drawer-overlay" onClick={onClose}>
+      <div className="drawer-panel" onClick={(e) => e.stopPropagation()}>
+        <button onClick={onClose} style={{ position: 'absolute', top: '14px', right: '14px', background: 'rgba(255, 254, 250, 0.95)', border: 'none', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 3, boxShadow: '0 2px 10px rgba(42,24,16,0.18)' }} aria-label="Close">
           <X size={20} color="#2A1810" />
         </button>
-        <div style={{ background: drink.photo ? '#EDE4D3' : drink.gradient, padding: drink.photo ? '0' : '32px 20px 16px 20px', display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'relative', overflow: 'hidden' }}>
+        {/* Hero: full, uncropped drink photo */}
+        <div style={{ background: drink.photo ? '#EDE4D3' : drink.gradient, display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
           {drink.photo ? (
-            <img src={drink.photo} alt={drink.name} style={{ width: '100%', height: '240px', objectFit: 'cover', objectPosition: 'center 35%', display: 'block' }} />
+            <div style={{ width: '100%', aspectRatio: '4 / 5' }}>
+              <img src={drink.photo} alt={drink.name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+            </div>
           ) : (
-            <DrinkVisual gradient={drink.gradient} size="md" />
+            <div style={{ padding: '36px 20px 24px 20px' }}>
+              <DrinkVisual gradient={drink.gradient} size="md" />
+            </div>
           )}
         </div>
-        <div style={{ padding: '24px 20px' }}>
+        <div style={{ padding: '24px 24px 28px 24px' }}>
           <h2 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: 'clamp(26px, 6vw, 32px)', color: '#2A1810', margin: '0 0 8px 0', fontWeight: 500, fontStyle: 'italic' }}>{drink.name}</h2>
           <p style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '15px', color: '#5C3A21', margin: '0 0 20px 0', lineHeight: 1.5 }}>{drink.desc}</p>
 
@@ -1327,13 +1332,101 @@ const OrderConfirmation = ({ order, onClose }) => (
 // ═══════════════════════════════════════════════════════
 // ORDER PAGE
 // ═══════════════════════════════════════════════════════
+const CartDrawer = ({ cart, cartTotal, onClose, onRemove, onCheckout, onBrowse }) => {
+  const cartCount = cart.reduce((s, i) => s + i.qty, 0);
+  return (
+    <div className="drawer-overlay" onClick={onClose}>
+      <div className="drawer-panel" onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div style={{ padding: '22px 24px 16px 24px', borderBottom: '1px solid rgba(92,58,33,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <ShoppingBag size={18} color="#2A1810" />
+            <h3 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '24px', color: '#2A1810', margin: 0, fontWeight: 500 }}>
+              Your Cart {cartCount > 0 && <span style={{ fontSize: '15px', color: '#5C3A21' }}>({cartCount})</span>}
+            </h3>
+          </div>
+          <button onClick={onClose} data-compact style={{ background: 'rgba(92,58,33,0.07)', border: 'none', borderRadius: '50%', width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }} aria-label="Close cart">
+            <X size={19} color="#2A1810" />
+          </button>
+        </div>
+
+        {cart.length === 0 ? (
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 24px', textAlign: 'center' }}>
+            <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: '#F0E2C9', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '16px' }}>
+              <ShoppingBag size={26} color="#5C3A21" />
+            </div>
+            <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', color: '#5C3A21', fontSize: '17px', margin: '0 0 18px 0' }}>
+              Your cart is waiting for love letters.
+            </p>
+            <button onClick={onBrowse} style={{ background: '#2A1810', color: '#FAF1E4', padding: '13px 28px', borderRadius: '999px', border: 'none', fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 500, cursor: 'pointer' }}>
+              Browse the menu
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* Items */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '18px 24px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                {cart.map(item => (
+                  <div key={item.id} style={{ display: 'flex', gap: '14px', position: 'relative' }}>
+                    <div style={{ flexShrink: 0 }}>
+                      <DrinkVisual gradient={item.gradient} photo={item.photo} size="xs" />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0, paddingRight: '20px' }}>
+                      <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '18px', color: '#2A1810', fontStyle: 'italic', fontWeight: 500, lineHeight: 1.15 }}>
+                        {item.name}
+                      </div>
+                      <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', color: '#5C3A21', marginTop: '4px', letterSpacing: '0.04em' }}>
+                        {item.size === 'L' ? 'Large' : 'Bucket'} · Qty {item.qty}
+                        {item.addOns.length > 0 && ` · +${item.addOns.length} add-on${item.addOns.length > 1 ? 's' : ''}`}
+                      </div>
+                      {item.notes && (
+                        <div style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '13px', color: '#5C3A21', marginTop: '3px' }}>
+                          "{item.notes}"
+                        </div>
+                      )}
+                      <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '16px', color: '#2A1810', marginTop: '5px', fontWeight: 600 }}>
+                        ${item.lineTotal.toFixed(2)}
+                      </div>
+                    </div>
+                    <button onClick={() => onRemove(item.id)} data-compact style={{ position: 'absolute', top: 0, right: 0, background: 'none', border: 'none', cursor: 'pointer', color: '#5C3A21', padding: '4px' }} aria-label={`Remove ${item.name}`}>
+                      <X size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div style={{ flexShrink: 0, borderTop: '1px solid rgba(92,58,33,0.12)', padding: '18px 24px 24px 24px', background: '#F0E2C9' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '16px' }}>
+                <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.2em', textTransform: 'uppercase', color: '#5C3A21' }}>Subtotal</span>
+                <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '30px', color: '#2A1810', fontWeight: 600 }}>${cartTotal.toFixed(2)}</span>
+              </div>
+              <button onClick={onCheckout}
+                style={{ width: '100%', background: '#2A1810', color: '#FAF1E4', padding: '17px', border: 'none', borderRadius: '999px', fontFamily: '"Outfit", sans-serif', fontSize: '13px', letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+                Checkout <ChevronRight size={16} />
+              </button>
+              <button onClick={onBrowse} style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', marginTop: '10px', fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '15px', color: '#5C3A21' }}>
+                Keep browsing
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const OrderPage = ({ cart, setCart, user, onSignIn }) => {
   const [activeCategory, setActiveCategory] = useState('matcha');
   const [selectedDrink, setSelectedDrink] = useState(null);
   const [showCheckout, setShowCheckout] = useState(false);
   const [confirmation, setConfirmation] = useState(null);
+  const [cartOpen, setCartOpen] = useState(false);
 
   const cartTotal = cart.reduce((sum, item) => sum + item.lineTotal, 0);
+  const cartCount = cart.reduce((s, i) => s + i.qty, 0);
 
   const addToCart = (drink, size, addOns, qty, notes) => {
     const basePrice = size === 'L' ? drink.priceL : drink.priceBucket;
@@ -1344,6 +1437,7 @@ const OrderPage = ({ cart, setCart, user, onSignIn }) => {
       gradient: drink.gradient, photo: drink.photo || null, size, addOns, qty, notes, basePrice, lineTotal,
     }]);
     setSelectedDrink(null);
+    setCartOpen(true); // slide the cart open so they see the drink was added
   };
 
   const removeFromCart = (id) => setCart(cart.filter(c => c.id !== id));
@@ -1356,156 +1450,116 @@ const OrderPage = ({ cart, setCart, user, onSignIn }) => {
   }
 
   return (
-    <div className={cart.length > 0 ? 'order-page-has-cart' : ''} style={{ background: '#FAF1E4', minHeight: '100vh', overflowX: 'hidden', maxWidth: '100%' }}>
-      <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '28px 20px 40px 20px', width: '100%' }}>
-        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+    <div style={{ background: '#FAF1E4', minHeight: '100vh', overflowX: 'hidden', maxWidth: '100%', paddingBottom: cart.length > 0 ? '96px' : '40px' }}>
+      <div style={{ maxWidth: '1160px', margin: '0 auto', padding: '36px 20px 20px 20px', width: '100%' }}>
+        <div style={{ textAlign: 'center', marginBottom: '28px' }}>
           <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.3em', textTransform: 'uppercase', color: '#5C3A21' }}>Order Online</span>
-          <h1 style={{ fontFamily: '"Pinyon Script", cursive', fontSize: 'clamp(38px, 10vw, 96px)', color: '#2A1810', margin: '4px 0 0 0', fontWeight: 400, lineHeight: 1 }}>
+          <h1 style={{ fontFamily: '"Pinyon Script", cursive', fontSize: 'clamp(44px, 11vw, 104px)', color: '#2A1810', margin: '2px 0 0 0', fontWeight: 400, lineHeight: 1 }}>
             Build your sip
           </h1>
-          <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: 'clamp(14px, 3.5vw, 18px)', color: '#5C3A21', margin: '8px 0 0 0' }}>
-            Choose your drink, customize, pick your pickup time.
+          <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: 'clamp(15px, 3.5vw, 19px)', color: '#5C3A21', margin: '10px 0 0 0' }}>
+            Choose your drink, make it yours, pick your pickup time.
           </p>
         </div>
 
-        <div className="order-grid">
-          <div>
-            <div className="h-scroll-fade" style={{ marginBottom: '20px' }}>
-              <div className="h-scroll">
-                {Object.entries(MENU).map(([key, cat]) => (
-                  <button key={key} onClick={() => setActiveCategory(key)}
-                    style={{ padding: '10px 18px', borderRadius: '999px', border: '1.5px solid #2A1810', background: activeCategory === key ? '#2A1810' : 'transparent', color: activeCategory === key ? '#FAF1E4' : '#2A1810', fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.2s' }}>
-                    {cat.title}
-                  </button>
-                ))}
-              </div>
-            </div>
+        {/* Category tabs — centered on desktop, scrollable on mobile */}
+        <div className="cat-tabs" style={{ marginBottom: '30px' }}>
+          {Object.entries(MENU).map(([key, cat]) => (
+            <button key={key} onClick={() => setActiveCategory(key)}
+              style={{ padding: '11px 22px', borderRadius: '999px', border: `1.5px solid ${activeCategory === key ? '#2A1810' : 'rgba(92,58,33,0.25)'}`, background: activeCategory === key ? '#2A1810' : 'transparent', color: activeCategory === key ? '#FAF1E4' : '#5C3A21', fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.25s', flexShrink: 0 }}>
+              {cat.title}
+            </button>
+          ))}
+        </div>
 
-            <div className="grid-2-sm">
-              {MENU[activeCategory].items.map(drink => (
-                <button key={drink.id} onClick={() => setSelectedDrink(drink)}
-                  style={{ background: '#FFFEFA', border: '1px solid rgba(92, 58, 33, 0.1)', borderRadius: '12px', padding: '0', textAlign: 'left', cursor: 'pointer', display: 'flex', flexDirection: 'column', transition: 'all 0.3s', boxShadow: '0 1px 3px rgba(42, 24, 16, 0.04)', width: '100%', maxWidth: '100%', minWidth: 0, overflow: 'hidden' }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = '#E8A4B8';
-                    e.currentTarget.style.boxShadow = '0 12px 28px rgba(42, 24, 16, 0.12)';
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = 'rgba(92, 58, 33, 0.1)';
-                    e.currentTarget.style.boxShadow = '0 1px 3px rgba(42, 24, 16, 0.04)';
-                    e.currentTarget.style.transform = 'translateY(0)';
-                  }}>
-                  {/* Hero image (real photo if available, else gradient) */}
-                  <div style={{ position: 'relative', width: '100%', aspectRatio: '4 / 3', overflow: 'hidden', background: drink.photo ? '#EDE4D3' : drink.gradient }}>
-                    {drink.photo ? (
-                      <img src={drink.photo} alt={drink.name} loading="lazy"
-                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                    ) : (
-                      <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <DrinkVisual gradient={drink.gradient} size="sm" />
-                      </div>
-                    )}
-                    {/* price chip */}
-                    <div style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(255, 254, 250, 0.94)', backdropFilter: 'blur(6px)', borderRadius: '999px', padding: '5px 12px', fontFamily: '"Cormorant Garamond", serif', fontSize: '15px', fontWeight: 600, color: '#2A1810', boxShadow: '0 2px 8px rgba(42,24,16,0.12)' }}>
-                      ${drink.priceL.toFixed(2)}
+        {/* Menu grid — centered, full width */}
+        <div className="menu-wrap">
+          <div className="menu-grid">
+            {MENU[activeCategory].items.map(drink => (
+              <button key={drink.id} onClick={() => setSelectedDrink(drink)} className="drink-card">
+                <div className="drink-card-imgwrap">
+                  {drink.photo ? (
+                    <img src={drink.photo} alt={drink.name} loading="lazy" className="drink-card-img" />
+                  ) : (
+                    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: drink.gradient }}>
+                      <DrinkVisual gradient={drink.gradient} size="sm" />
                     </div>
+                  )}
+                  <div style={{ position: 'absolute', top: '12px', right: '12px', background: 'rgba(255, 254, 250, 0.94)', backdropFilter: 'blur(6px)', borderRadius: '999px', padding: '5px 13px', fontFamily: '"Cormorant Garamond", serif', fontSize: '16px', fontWeight: 600, color: '#2A1810', boxShadow: '0 2px 8px rgba(42,24,16,0.14)' }}>
+                    ${drink.priceL.toFixed(2)}
                   </div>
-                  {/* Text */}
-                  <div style={{ padding: '14px 16px 16px 16px', minWidth: 0 }}>
-                    <h3 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '20px', color: '#2A1810', margin: '0 0 5px 0', fontWeight: 500, fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{drink.name}</h3>
-                    <p style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11.5px', color: '#5C3A21', lineHeight: 1.45, margin: '0 0 10px 0', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'break-word', minHeight: '33px' }}>{drink.desc}</p>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
-                      <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '13px', color: '#5C3A21', fontWeight: 500 }}>
-                        {drink.priceBucket !== drink.priceL
-                          ? <>Large · <span style={{ color: '#2A1810', fontWeight: 600 }}>${drink.priceBucket.toFixed(2)}</span> bucket</>
-                          : <>Single size</>}
-                      </div>
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#2A1810', color: '#FAF1E4', borderRadius: '999px', padding: '6px 12px', fontFamily: '"Outfit", sans-serif', fontSize: '10px', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 500, flexShrink: 0 }}>
-                        <Plus size={11} /> Add
-                      </span>
-                    </div>
+                </div>
+                <div style={{ padding: '16px 16px 18px 16px', minWidth: 0, display: 'flex', flexDirection: 'column', flex: 1 }}>
+                  <h3 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '21px', color: '#2A1810', margin: '0 0 5px 0', fontWeight: 500, fontStyle: 'italic', lineHeight: 1.1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{drink.name}</h3>
+                  <p style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11.5px', color: '#5C3A21', lineHeight: 1.5, margin: '0 0 14px 0', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'break-word', minHeight: '34px' }}>{drink.desc}</p>
+                  <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '13px', color: '#5C3A21', fontWeight: 500 }}>
+                      {drink.priceBucket !== drink.priceL
+                        ? <>Bucket <span style={{ color: '#2A1810', fontWeight: 600 }}>${drink.priceBucket.toFixed(2)}</span></>
+                        : <>One size</>}
+                    </span>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: '#2A1810', color: '#FAF1E4', borderRadius: '999px', padding: '7px 14px', fontFamily: '"Outfit", sans-serif', fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 500, flexShrink: 0 }}>
+                      Customize
+                    </span>
                   </div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="cart-sticky">
-            <div style={{ background: '#F0E2C9', borderRadius: '4px', padding: '24px', border: '1px solid rgba(92, 58, 33, 0.12)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '18px' }}>
-                <ShoppingBag size={18} color="#2A1810" />
-                <h3 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '22px', color: '#2A1810', margin: 0, fontWeight: 500 }}>Your Cart</h3>
-              </div>
-
-              {cart.length === 0 ? (
-                <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', color: '#5C3A21', fontSize: '15px', textAlign: 'center', padding: '20px 0' }}>
-                  Your cart is waiting for love letters.
-                </p>
-              ) : (
-                <>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '400px', overflowY: 'auto', marginBottom: '14px' }}>
-                    {cart.map(item => (
-                      <div key={item.id} style={{ background: '#FFFEFA', padding: '14px', borderRadius: '3px', position: 'relative' }}>
-                        <button onClick={() => removeFromCart(item.id)} data-compact style={{ position: 'absolute', top: '8px', right: '8px', background: 'none', border: 'none', cursor: 'pointer', color: '#5C3A21', padding: '4px' }} aria-label="Remove">
-                          <X size={14} />
-                        </button>
-                        <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '17px', color: '#2A1810', fontStyle: 'italic', fontWeight: 500, paddingRight: '22px' }}>
-                          {item.name}
-                        </div>
-                        <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', color: '#5C3A21', marginTop: '4px', letterSpacing: '0.05em' }}>
-                          {item.size === 'L' ? 'Large' : 'Bucket'} · Qty {item.qty}
-                          {item.addOns.length > 0 && ` · +${item.addOns.length}`}
-                        </div>
-                        {item.notes && (
-                          <div style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '13px', color: '#5C3A21', marginTop: '4px' }}>
-                            "{item.notes}"
-                          </div>
-                        )}
-                        <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '15px', color: '#2A1810', marginTop: '6px', fontWeight: 600 }}>
-                          ${item.lineTotal.toFixed(2)}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div style={{ borderTop: '1px solid rgba(92, 58, 33, 0.2)', paddingTop: '14px', marginBottom: '16px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                      <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.2em', textTransform: 'uppercase', color: '#5C3A21' }}>Subtotal</span>
-                      <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '26px', color: '#2A1810', fontWeight: 600 }}>${cartTotal.toFixed(2)}</span>
-                    </div>
-                  </div>
-                  <button onClick={() => setShowCheckout(true)}
-                    style={{ width: '100%', background: '#2A1810', color: '#FAF1E4', padding: '16px', border: 'none', borderRadius: '999px', fontFamily: '"Outfit", sans-serif', fontSize: '13px', letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
-                    Checkout <ChevronRight size={16} />
-                  </button>
-                </>
-              )}
-            </div>
+                </div>
+              </button>
+            ))}
           </div>
         </div>
       </div>
 
-      {/* Mobile floating cart bar */}
+      {/* Persistent cart access */}
       {cart.length > 0 && (
-        <button onClick={() => setShowCheckout(true)} className="mobile-cart-bar" style={{ border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <>
+          {/* Mobile sticky bar */}
+          <button onClick={() => setCartOpen(true)} className="mobile-cart-bar" style={{ border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <ShoppingBag size={22} color="#FAF1E4" />
+                <span style={{ position: 'absolute', top: -6, right: -8, background: '#E8A4B8', color: '#2A1810', fontSize: '10px', fontWeight: 700, minWidth: '18px', height: '18px', padding: '0 4px', borderRadius: '999px', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
+                  {cartCount}
+                </span>
+              </div>
+              <div>
+                <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '10px', letterSpacing: '0.2em', textTransform: 'uppercase', opacity: 0.7 }}>Your Cart</div>
+                <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '20px', fontWeight: 600 }}>${cartTotal.toFixed(2)}</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500 }}>
+              View <ChevronRight size={16} />
+            </div>
+          </button>
+
+          {/* Desktop floating pill */}
+          <button onClick={() => setCartOpen(true)} className="cart-fab">
             <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <ShoppingBag size={22} color="#FAF1E4" />
-              <span style={{ position: 'absolute', top: -6, right: -8, background: '#E8A4B8', color: '#2A1810', fontSize: '10px', fontWeight: 700, minWidth: '18px', height: '18px', padding: '0 4px', borderRadius: '999px', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
-                {cart.reduce((s, i) => s + i.qty, 0)}
+              <ShoppingBag size={20} color="#FAF1E4" />
+              <span style={{ position: 'absolute', top: -8, right: -10, background: '#E8A4B8', color: '#2A1810', fontSize: '10px', fontWeight: 700, minWidth: '18px', height: '18px', padding: '0 4px', borderRadius: '999px', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
+                {cartCount}
               </span>
             </div>
-            <div>
-              <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '10px', letterSpacing: '0.2em', textTransform: 'uppercase', opacity: 0.7 }}>Your Cart</div>
-              <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '20px', fontWeight: 600 }}>${cartTotal.toFixed(2)}</div>
-            </div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500 }}>
-            Checkout <ChevronRight size={16} />
-          </div>
-        </button>
+            <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '19px', fontWeight: 600 }}>${cartTotal.toFixed(2)}</span>
+            <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 500, opacity: 0.85 }}>View cart</span>
+          </button>
+        </>
       )}
 
-      {selectedDrink && <DrinkCustomizer drink={selectedDrink} onClose={() => setSelectedDrink(null)} onAdd={addToCart} user={user} onSignIn={onSignIn} />}
+      {/* Cart drawer */}
+      {cartOpen && (
+        <CartDrawer
+          cart={cart} cartTotal={cartTotal}
+          onClose={() => setCartOpen(false)}
+          onRemove={removeFromCart}
+          onCheckout={() => { setCartOpen(false); setShowCheckout(true); }}
+          onBrowse={() => setCartOpen(false)}
+        />
+      )}
+
+      {/* Drink detail drawer */}
+      {selectedDrink && (
+        <DrinkCustomizer drink={selectedDrink} onClose={() => setSelectedDrink(null)} onAdd={addToCart} user={user} onSignIn={onSignIn} />
+      )}
     </div>
   );
 };
