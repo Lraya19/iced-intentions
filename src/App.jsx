@@ -417,18 +417,21 @@ const HomePage = ({ setPage }) => {
             </div>
           </div>
 
-          <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '320px', marginTop: '20px' }}>
-            <div style={{ position: 'absolute', top: '8%', left: '15%', transform: 'rotate(-6deg)', opacity: 0.85 }}>
-              <DrinkVisual gradient={MENU.matcha.items[3].gradient} size="sm" />
+          <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '380px', marginTop: '20px' }}>
+            {/* Back-left: Matcha Rosa */}
+            <div style={{ position: 'absolute', top: '4%', left: '8%', transform: 'rotate(-7deg)', width: 'clamp(120px, 20vw, 168px)', aspectRatio: '4 / 5', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 14px 36px rgba(42,24,16,0.18)', zIndex: 1 }}>
+              <img src="/drinks/matcha-rosa.jpeg" alt="Matcha Rosa" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
             </div>
-            <div style={{ position: 'relative', zIndex: 2 }}>
-              <DrinkVisual gradient={MENU.lattes.items[1].gradient} size="md" />
+            {/* Center: Mornenita Mornings (hero) */}
+            <div style={{ position: 'relative', zIndex: 2, width: 'clamp(170px, 30vw, 240px)', aspectRatio: '4 / 5', borderRadius: '20px', overflow: 'hidden', boxShadow: '0 24px 60px rgba(42,24,16,0.28)' }}>
+              <img src="/drinks/mornenita-mornings.jpeg" alt="Mornenita Mornings" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
             </div>
-            <div style={{ position: 'absolute', bottom: '8%', right: '12%', transform: 'rotate(8deg)', opacity: 0.85 }}>
-              <DrinkVisual gradient={MENU.energy.items[2].gradient} size="sm" />
+            {/* Back-right: Azulita Fuse */}
+            <div style={{ position: 'absolute', bottom: '4%', right: '6%', transform: 'rotate(8deg)', width: 'clamp(120px, 20vw, 168px)', aspectRatio: '4 / 5', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 14px 36px rgba(42,24,16,0.18)', zIndex: 1 }}>
+              <img src="/drinks/azulita-fuse.jpeg" alt="Azulita Fuse" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
             </div>
-            <Sparkles size={18} style={{ position: 'absolute', top: '15%', right: '20%', color: '#E8A4B8' }} />
-            <Heart size={14} style={{ position: 'absolute', bottom: '25%', left: '15%', color: '#E8A4B8', fill: '#E8A4B8' }} />
+            <Sparkles size={20} style={{ position: 'absolute', top: '10%', right: '16%', color: '#E8A4B8', zIndex: 3 }} />
+            <Heart size={15} style={{ position: 'absolute', bottom: '16%', left: '12%', color: '#E8A4B8', fill: '#E8A4B8', zIndex: 3 }} />
           </div>
         </div>
       </section>
