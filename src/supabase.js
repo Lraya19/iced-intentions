@@ -17,7 +17,9 @@ if (isSupabaseConfigured) {
   try {
     supabase = createClient(supabaseUrl, supabaseKey, {
       realtime: { params: { eventsPerSecond: 10 } },
-      auth: { persistSession: false }, // we don't use auth on the public site
+      // Persist the loyalty/owner login across refreshes; pick up the
+      // session from the magic-link redirect automatically.
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
     });
     console.log('✅ Supabase connected. Real-time slot syncing enabled.');
   } catch (err) {
