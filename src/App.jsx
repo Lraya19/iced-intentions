@@ -4,6 +4,7 @@ import {
   ChevronRight, ChevronLeft, X, Plus, Minus, Check, Sparkles,
   Coffee, Star, Loader2, Menu as MenuIcon, CreditCard, Lock,
   User, LogOut, Gift, Mail, Trash2, RotateCcw,
+  LayoutDashboard, Power, PauseCircle, PlayCircle, CheckCircle2, Package, RefreshCw,
 } from 'lucide-react';
 import { subscribeToSlots, bookSlot, subscribeToEventDates, bookEvent, saveOrder } from './storage';
 import { sendOrderEmail, sendEventEmail } from './email';
@@ -15,6 +16,10 @@ import {
   STAMPS_FOR_REWARD, getLoyaltyBalance, getLoyaltyHistory, getMyOrders,
   getFavorites, addFavorite, removeFavorite,
 } from './loyalty';
+import {
+  amIAdmin, getStoreSettings, updateStoreSettings, subscribeToStoreSettings,
+  getOrdersForDate, setOrderFulfilled, subscribeToOrders,
+} from './admin';
 
 // ═══════════════════════════════════════════════════════
 // PUBLIC BUSINESS CONFIG (read from env)
@@ -777,7 +782,7 @@ const DrinkCustomizer = ({ drink, onClose, onAdd, user, onSignIn }) => {
 // ═══════════════════════════════════════════════════════
 // CHECKOUT FLOW
 // ═══════════════════════════════════════════════════════
-const CheckoutFlow = ({ cart, cartTotal, user, onBack, onComplete }) => {
+const CheckoutFlow = ({ cart, cartTotal, user, paused, onBack, onComplete }) => {
   const [selectedDate, setSelectedDate] = useState(getNextSevenDays()[0].iso);
   const [selectedTime, setSelectedTime] = useState(null);
   const [bookedSlots, setBookedSlots] = useState({});
@@ -1034,6 +1039,8 @@ const CheckoutFlow = ({ cart, cartTotal, user, onBack, onComplete }) => {
     if (err.message === 'SLOT_TAKEN') {
       setError('That time was just booked by someone else. Please pick another.');
       setSelectedTime(null);
+    } else if (err.message && err.message.includes('ORDERING_PAUSED')) {
+      setError('Online ordering was just paused. Please try again a little later. 🤍');
     } else {
       setError(err.message || 'Something went wrong. Please try again.');
       console.error(err);
@@ -1042,6 +1049,7 @@ const CheckoutFlow = ({ cart, cartTotal, user, onBack, onComplete }) => {
 
   // Router for the main button.
   const handleSubmit = () => {
+    if (paused) { setError('Online ordering is paused right now. Please try again a little later. 🤍'); return; }
     if (payMode === 'now') {
       // Free reward order needs no card; otherwise use the mounted card.
       if (isFreeOrder) handlePayNow(null);
@@ -1427,6 +1435,18 @@ const OrderPage = ({ cart, setCart, user, onSignIn }) => {
   const [showCheckout, setShowCheckout] = useState(false);
   const [confirmation, setConfirmation] = useState(null);
   const [cartOpen, setCartOpen] = useState(false);
+  const [store, setStore] = useState({ ordering_paused: false, pause_message: '', sold_out_drinks: [] });
+
+  // Load store settings (pause + sold-out) and keep them live.
+  useEffect(() => {
+    let alive = true;
+    getStoreSettings().then(s => { if (alive) setStore(s); });
+    const unsub = subscribeToStoreSettings((s) => setStore(s));
+    return () => { alive = false; unsub(); };
+  }, []);
+
+  const paused = store.ordering_paused;
+  const soldOut = store.sold_out_drinks || [];
 
   const cartTotal = cart.reduce((sum, item) => sum + item.lineTotal, 0);
   const cartCount = cart.reduce((s, i) => s + i.qty, 0);
@@ -1449,7 +1469,7 @@ const OrderPage = ({ cart, setCart, user, onSignIn }) => {
     return <OrderConfirmation order={confirmation} onClose={() => { setConfirmation(null); setCart([]); }} />;
   }
   if (showCheckout) {
-    return <CheckoutFlow cart={cart} cartTotal={cartTotal} user={user} onBack={() => setShowCheckout(false)} onComplete={(order) => { setConfirmation(order); setShowCheckout(false); }} />;
+    return <CheckoutFlow cart={cart} cartTotal={cartTotal} user={user} paused={paused} onBack={() => setShowCheckout(false)} onComplete={(order) => { setConfirmation(order); setShowCheckout(false); }} />;
   }
 
   return (
@@ -1465,6 +1485,18 @@ const OrderPage = ({ cart, setCart, user, onSignIn }) => {
           </p>
         </div>
 
+        {/* Paused banner */}
+        {paused && (
+          <div style={{ maxWidth: '720px', margin: '0 auto 26px auto', background: '#FFFEFA', border: '1.5px solid #E8A4B8', borderRadius: '14px', padding: '18px 22px', textAlign: 'center' }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', fontFamily: '"Outfit", sans-serif', fontSize: '10px', letterSpacing: '0.2em', textTransform: 'uppercase', color: '#A83A56', fontWeight: 600, marginBottom: '6px' }}>
+              <PauseCircle size={14} /> Online ordering paused
+            </div>
+            <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '18px', color: '#2A1810', margin: 0, lineHeight: 1.4 }}>
+              {store.pause_message || "We're taking a quick break — online ordering will be back shortly. 🤍"}
+            </p>
+          </div>
+        )}
+
         {/* Category tabs — centered on desktop, scrollable on mobile */}
         <div className="cat-tabs" style={{ marginBottom: '30px' }}>
           {Object.entries(MENU).map(([key, cat]) => (
@@ -1478,19 +1510,29 @@ const OrderPage = ({ cart, setCart, user, onSignIn }) => {
         {/* Menu grid — centered, full width */}
         <div className="menu-wrap">
           <div className="menu-grid">
-            {MENU[activeCategory].items.map(drink => (
-              <button key={drink.id} onClick={() => setSelectedDrink(drink)} className="drink-card">
+            {MENU[activeCategory].items.map(drink => {
+              const isSoldOut = soldOut.includes(drink.id);
+              const disabled = isSoldOut || paused;
+              return (
+              <button key={drink.id} onClick={() => !disabled && setSelectedDrink(drink)} className="drink-card"
+                style={disabled ? { cursor: 'not-allowed' } : undefined} aria-disabled={disabled}>
                 <div className="drink-card-imgwrap">
                   {drink.photo ? (
-                    <img src={drink.photo} alt={drink.name} loading="lazy" className="drink-card-img" />
+                    <img src={drink.photo} alt={drink.name} loading="lazy" className="drink-card-img" style={isSoldOut ? { filter: 'grayscale(0.7) brightness(0.92)' } : undefined} />
                   ) : (
-                    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: drink.gradient }}>
+                    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: drink.gradient, filter: isSoldOut ? 'grayscale(0.7)' : undefined }}>
                       <DrinkVisual gradient={drink.gradient} size="sm" />
                     </div>
                   )}
-                  <div style={{ position: 'absolute', top: '12px', right: '12px', background: 'rgba(255, 254, 250, 0.94)', backdropFilter: 'blur(6px)', borderRadius: '999px', padding: '5px 13px', fontFamily: '"Cormorant Garamond", serif', fontSize: '16px', fontWeight: 600, color: '#2A1810', boxShadow: '0 2px 8px rgba(42,24,16,0.14)' }}>
-                    ${drink.priceL.toFixed(2)}
-                  </div>
+                  {isSoldOut ? (
+                    <div style={{ position: 'absolute', top: '12px', left: '12px', background: '#A83A56', color: '#FFFEFA', borderRadius: '999px', padding: '5px 13px', fontFamily: '"Outfit", sans-serif', fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, boxShadow: '0 2px 8px rgba(42,24,16,0.18)' }}>
+                      Sold out
+                    </div>
+                  ) : (
+                    <div style={{ position: 'absolute', top: '12px', right: '12px', background: 'rgba(255, 254, 250, 0.94)', backdropFilter: 'blur(6px)', borderRadius: '999px', padding: '5px 13px', fontFamily: '"Cormorant Garamond", serif', fontSize: '16px', fontWeight: 600, color: '#2A1810', boxShadow: '0 2px 8px rgba(42,24,16,0.14)' }}>
+                      ${drink.priceL.toFixed(2)}
+                    </div>
+                  )}
                 </div>
                 <div style={{ padding: '16px 16px 18px 16px', minWidth: 0, display: 'flex', flexDirection: 'column', flex: 1 }}>
                   <h3 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '21px', color: '#2A1810', margin: '0 0 5px 0', fontWeight: 500, fontStyle: 'italic', lineHeight: 1.1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{drink.name}</h3>
@@ -1501,13 +1543,14 @@ const OrderPage = ({ cart, setCart, user, onSignIn }) => {
                         ? <>Bucket <span style={{ color: '#2A1810', fontWeight: 600 }}>${drink.priceBucket.toFixed(2)}</span></>
                         : <>One size</>}
                     </span>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: '#2A1810', color: '#FAF1E4', borderRadius: '999px', padding: '7px 14px', fontFamily: '"Outfit", sans-serif', fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 500, flexShrink: 0 }}>
-                      Customize
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: disabled ? 'rgba(92,58,33,0.25)' : '#2A1810', color: '#FAF1E4', borderRadius: '999px', padding: '7px 14px', fontFamily: '"Outfit", sans-serif', fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 500, flexShrink: 0 }}>
+                      {isSoldOut ? 'Sold out' : 'Customize'}
                     </span>
                   </div>
                 </div>
               </button>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
@@ -1941,7 +1984,7 @@ const StampCard = ({ balance }) => {
 // ═══════════════════════════════════════════════════════
 // DASHBOARD PAGE
 // ═══════════════════════════════════════════════════════
-const DashboardPage = ({ user, setPage, onReorder }) => {
+const DashboardPage = ({ user, setPage, onReorder, isAdmin }) => {
   const [balance, setBalance] = useState(0);
   const [history, setHistory] = useState([]);
   const [orders, setOrders] = useState([]);
@@ -1990,6 +2033,20 @@ const DashboardPage = ({ user, setPage, onReorder }) => {
             <LogOut size={13} /> Sign out
           </button>
         </div>
+
+        {isAdmin && (
+          <button onClick={() => setPage('owner')}
+            style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', background: '#2A1810', color: '#FAF1E4', border: 'none', borderRadius: '14px', padding: '16px 20px', cursor: 'pointer', marginBottom: '24px' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '11px' }}>
+              <LayoutDashboard size={19} />
+              <span style={{ textAlign: 'left' }}>
+                <span style={{ display: 'block', fontFamily: '"Cormorant Garamond", serif', fontSize: '19px', fontStyle: 'italic', fontWeight: 600 }}>Owner Dashboard</span>
+                <span style={{ display: 'block', fontFamily: '"Outfit", sans-serif', fontSize: '11px', opacity: 0.8 }}>Orders, sold-out & pause controls</span>
+              </span>
+            </span>
+            <ChevronRight size={18} />
+          </button>
+        )}
 
         {loading ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#5C3A21', fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '16px', padding: '40px 0' }}>
@@ -2118,6 +2175,291 @@ const DashboardPage = ({ user, setPage, onReorder }) => {
   );
 };
 
+// ═══════════════════════════════════════════════════════════════
+// OWNER DASHBOARD (admin only)
+// ═══════════════════════════════════════════════════════════════
+const OwnerDashboard = ({ user, setPage }) => {
+  const [checking, setChecking] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [dateIso, setDateIso] = useState(formatLocalDate(new Date()));
+  const [orders, setOrders] = useState([]);
+  const [loadingOrders, setLoadingOrders] = useState(true);
+  const [settings, setSettings] = useState({ ordering_paused: false, pause_message: '', sold_out_drinks: [] });
+  const [pauseMsgDraft, setPauseMsgDraft] = useState('');
+  const [savingPause, setSavingPause] = useState(false);
+  const [savingDrink, setSavingDrink] = useState(null);
+  const days = useMemo(() => getNextSevenDays(), []);
+
+  const allDrinks = useMemo(() => {
+    const out = [];
+    Object.values(MENU).forEach(cat => cat.items.forEach(d => out.push({ id: d.id, name: d.name, category: cat.title })));
+    return out;
+  }, []);
+
+  // Verify admin on mount.
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const ok = await amIAdmin();
+      if (!alive) return;
+      setIsAdmin(ok);
+      setChecking(false);
+      if (ok) {
+        const s = await getStoreSettings();
+        if (!alive) return;
+        setSettings(s); setPauseMsgDraft(s.pause_message);
+      }
+    })();
+    return () => { alive = false; };
+  }, [user]);
+
+  // Load orders for the chosen date + live refresh.
+  const refreshOrders = async (d) => {
+    setLoadingOrders(true);
+    const rows = await getOrdersForDate(d);
+    setOrders(rows);
+    setLoadingOrders(false);
+  };
+  useEffect(() => {
+    if (!isAdmin) return;
+    refreshOrders(dateIso);
+    const unsubO = subscribeToOrders(() => refreshOrders(dateIso));
+    const unsubS = subscribeToStoreSettings((s) => { setSettings(s); setPauseMsgDraft(s.pause_message); });
+    return () => { unsubO(); unsubS(); };
+  }, [isAdmin, dateIso]);
+
+  const togglePause = async () => {
+    setSavingPause(true);
+    try {
+      const next = !settings.ordering_paused;
+      const saved = await updateStoreSettings({ ordering_paused: next, pause_message: pauseMsgDraft });
+      setSettings(s => ({ ...s, ordering_paused: !!saved.ordering_paused, pause_message: saved.pause_message || '' }));
+    } catch (e) { alert('Could not update: ' + (e.message || 'try again')); }
+    setSavingPause(false);
+  };
+
+  const savePauseMessage = async () => {
+    setSavingPause(true);
+    try {
+      const saved = await updateStoreSettings({ pause_message: pauseMsgDraft });
+      setSettings(s => ({ ...s, pause_message: saved.pause_message || '' }));
+    } catch (e) { alert('Could not save message: ' + (e.message || 'try again')); }
+    setSavingPause(false);
+  };
+
+  const toggleSoldOut = async (drinkId) => {
+    setSavingDrink(drinkId);
+    try {
+      const current = settings.sold_out_drinks || [];
+      const next = current.includes(drinkId) ? current.filter(x => x !== drinkId) : [...current, drinkId];
+      const saved = await updateStoreSettings({ sold_out_drinks: next });
+      setSettings(s => ({ ...s, sold_out_drinks: Array.isArray(saved.sold_out_drinks) ? saved.sold_out_drinks : next }));
+    } catch (e) { alert('Could not update: ' + (e.message || 'try again')); }
+    setSavingDrink(null);
+  };
+
+  const toggleFulfilled = async (order) => {
+    try {
+      await setOrderFulfilled(order.id, !order.fulfilled);
+      setOrders(os => os.map(o => o.id === order.id ? { ...o, fulfilled: !o.fulfilled } : o));
+    } catch (e) { alert('Could not update order: ' + (e.message || 'try again')); }
+  };
+
+  // ── Guards ──
+  if (!user) {
+    return <div style={{ minHeight: '70vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px' }}>
+      <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '20px', color: '#5C3A21' }}>Please sign in to continue.</p>
+    </div>;
+  }
+  if (checking) {
+    return <div style={{ minHeight: '70vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Loader2 size={26} className="spin" color="#5C3A21" />
+    </div>;
+  }
+  if (!isAdmin) {
+    return <div style={{ minHeight: '70vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px', textAlign: 'center' }}>
+      <Lock size={28} color="#5C3A21" />
+      <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '20px', color: '#5C3A21', margin: '14px 0' }}>This area is for the Iced Intentions team.</p>
+      <button onClick={() => setPage('home')} style={{ background: '#2A1810', color: '#FAF1E4', padding: '12px 26px', borderRadius: '999px', border: 'none', fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>Back home</button>
+    </div>;
+  }
+
+  // ── Stats ──
+  const paidOrders = orders.filter(o => o.payment_status === 'paid');
+  const revenue = paidOrders.reduce((s, o) => s + (Number(o.total) || 0), 0);
+  const pendingCount = orders.filter(o => !o.fulfilled).length;
+
+  const itemsSummary = (items) => (items || []).map(it => `${it.qty}× ${it.name} (${it.size === 'L' ? 'L' : 'Bucket'})`).join(', ');
+
+  return (
+    <div style={{ background: '#FAF1E4', minHeight: '100vh', padding: '32px 20px 80px 20px' }}>
+      <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '8px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <LayoutDashboard size={20} color="#2A1810" />
+            <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.3em', textTransform: 'uppercase', color: '#5C3A21' }}>Owner Dashboard</span>
+          </div>
+          <button onClick={() => refreshOrders(dateIso)} data-compact style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', background: 'transparent', border: '1.5px solid rgba(92,58,33,0.25)', borderRadius: '999px', padding: '8px 16px', fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5C3A21', cursor: 'pointer' }}>
+            <RefreshCw size={13} /> Refresh
+          </button>
+        </div>
+        <h1 style={{ fontFamily: '"Pinyon Script", cursive', fontSize: 'clamp(40px, 9vw, 68px)', color: '#2A1810', margin: '0 0 6px 0', fontWeight: 400, lineHeight: 1 }}>
+          Good day, {displayName(user)}
+        </h1>
+
+        {/* Store status banner */}
+        <div style={{ background: settings.ordering_paused ? '#A83A56' : '#3D7A4F', color: '#FAF1E4', borderRadius: '12px', padding: '12px 18px', display: 'flex', alignItems: 'center', gap: '10px', margin: '18px 0 28px 0' }}>
+          {settings.ordering_paused ? <PauseCircle size={18} /> : <PlayCircle size={18} />}
+          <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '13px', fontWeight: 500 }}>
+            {settings.ordering_paused ? 'Online ordering is PAUSED — customers cannot place orders.' : 'Online ordering is live — accepting orders.'}
+          </span>
+        </div>
+
+        {/* ── STORE CONTROLS ── */}
+        <div style={{ background: '#FFFEFA', border: '1px solid rgba(92,58,33,0.1)', borderRadius: '16px', padding: '22px', marginBottom: '24px' }}>
+          <h2 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '24px', color: '#2A1810', margin: '0 0 18px 0', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '9px' }}>
+            <Power size={18} /> Store controls
+          </h2>
+
+          {/* Pause toggle */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap', paddingBottom: '18px', borderBottom: '1px solid rgba(92,58,33,0.1)' }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '19px', fontStyle: 'italic', color: '#2A1810', fontWeight: 600 }}>Pause online ordering</div>
+              <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', color: '#5C3A21', marginTop: '2px' }}>Flip this when you're closed, slammed, or out of supplies.</div>
+            </div>
+            <button onClick={togglePause} disabled={savingPause}
+              style={{ flexShrink: 0, position: 'relative', width: '64px', height: '34px', borderRadius: '999px', border: 'none', cursor: savingPause ? 'wait' : 'pointer', background: settings.ordering_paused ? '#A83A56' : '#3D7A4F', transition: 'background 0.25s' }}>
+              <span style={{ position: 'absolute', top: '3px', left: settings.ordering_paused ? '33px' : '3px', width: '28px', height: '28px', borderRadius: '50%', background: '#FFFEFA', transition: 'left 0.25s', boxShadow: '0 1px 4px rgba(0,0,0,0.3)' }} />
+            </button>
+          </div>
+
+          {/* Pause message */}
+          <div style={{ paddingTop: '16px' }}>
+            <label style={{ fontFamily: '"Outfit", sans-serif', fontSize: '10px', letterSpacing: '0.16em', textTransform: 'uppercase', color: '#5C3A21', display: 'block', marginBottom: '6px' }}>
+              Message shown to customers while paused
+            </label>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <input value={pauseMsgDraft} onChange={e => setPauseMsgDraft(e.target.value)} placeholder="We're taking a quick break…"
+                style={{ flex: 1, minWidth: '200px', padding: '11px 13px', borderRadius: '8px', border: '1.5px solid rgba(92,58,33,0.2)', background: '#FAF1E4', fontFamily: '"Cormorant Garamond", serif', fontSize: '15px', color: '#2A1810', outline: 'none' }} />
+              <button onClick={savePauseMessage} disabled={savingPause || pauseMsgDraft === settings.pause_message}
+                style={{ background: (pauseMsgDraft === settings.pause_message) ? 'rgba(92,58,33,0.15)' : '#2A1810', color: (pauseMsgDraft === settings.pause_message) ? '#5C3A21' : '#FAF1E4', border: 'none', borderRadius: '999px', padding: '0 22px', fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 500, cursor: (savingPause || pauseMsgDraft === settings.pause_message) ? 'default' : 'pointer' }}>
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* ── SOLD OUT ── */}
+        <div style={{ background: '#FFFEFA', border: '1px solid rgba(92,58,33,0.1)', borderRadius: '16px', padding: '22px', marginBottom: '32px' }}>
+          <h2 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '24px', color: '#2A1810', margin: '0 0 6px 0', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '9px' }}>
+            <Package size={18} /> Sold-out drinks
+          </h2>
+          <p style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', color: '#5C3A21', margin: '0 0 16px 0' }}>
+            Tap a drink to mark it sold out. It stays on the menu but customers can't add it until you turn it back on.
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '8px' }}>
+            {allDrinks.map(d => {
+              const isSoldOut = settings.sold_out_drinks?.includes(d.id);
+              return (
+                <button key={d.id} onClick={() => toggleSoldOut(d.id)} disabled={savingDrink === d.id}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', textAlign: 'left', padding: '11px 13px', borderRadius: '10px', border: `1.5px solid ${isSoldOut ? '#A83A56' : 'rgba(92,58,33,0.15)'}`, background: isSoldOut ? 'rgba(168,58,86,0.08)' : '#FAF1E4', cursor: savingDrink === d.id ? 'wait' : 'pointer', transition: 'all 0.2s' }}>
+                  <span style={{ minWidth: 0 }}>
+                    <span style={{ display: 'block', fontFamily: '"Cormorant Garamond", serif', fontSize: '16px', fontStyle: 'italic', color: '#2A1810', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.name}</span>
+                    <span style={{ display: 'block', fontFamily: '"Outfit", sans-serif', fontSize: '9px', letterSpacing: '0.12em', textTransform: 'uppercase', color: isSoldOut ? '#A83A56' : '#5C3A21', fontWeight: 600, marginTop: '1px' }}>{isSoldOut ? 'Sold out' : 'Available'}</span>
+                  </span>
+                  <span style={{ flexShrink: 0, width: '16px', height: '16px', borderRadius: '4px', border: `1.5px solid ${isSoldOut ? '#A83A56' : 'rgba(92,58,33,0.3)'}`, background: isSoldOut ? '#A83A56' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {isSoldOut && <X size={11} color="#FFFEFA" />}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ── ORDERS BOARD ── */}
+        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '14px' }}>
+          <h2 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '26px', color: '#2A1810', margin: 0, fontWeight: 500 }}>Pickup orders</h2>
+        </div>
+
+        {/* Date selector */}
+        <div className="cat-tabs" style={{ marginBottom: '18px' }}>
+          {days.map(d => (
+            <button key={d.iso} onClick={() => setDateIso(d.iso)}
+              style={{ flexShrink: 0, padding: '9px 16px', borderRadius: '999px', border: `1.5px solid ${dateIso === d.iso ? '#2A1810' : 'rgba(92,58,33,0.2)'}`, background: dateIso === d.iso ? '#2A1810' : 'transparent', color: dateIso === d.iso ? '#FAF1E4' : '#5C3A21', fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.08em', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+              {d.isToday ? 'Today' : `${d.day} ${d.month} ${d.date}`}
+            </button>
+          ))}
+        </div>
+
+        {/* Stats */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '18px' }}>
+          {[
+            { label: 'Orders', value: orders.length },
+            { label: 'To prep', value: pendingCount },
+            { label: 'Paid revenue', value: `$${revenue.toFixed(2)}` },
+          ].map(s => (
+            <div key={s.label} style={{ background: '#F0E2C9', borderRadius: '12px', padding: '14px 16px', textAlign: 'center' }}>
+              <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: 'clamp(22px, 5vw, 30px)', color: '#2A1810', fontWeight: 600, lineHeight: 1 }}>{s.value}</div>
+              <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '9px', letterSpacing: '0.16em', textTransform: 'uppercase', color: '#5C3A21', marginTop: '5px' }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Orders list */}
+        {loadingOrders ? (
+          <div style={{ textAlign: 'center', padding: '40px' }}><Loader2 size={22} className="spin" color="#5C3A21" /></div>
+        ) : orders.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px', fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '18px', color: '#5C3A21' }}>
+            No orders for this day yet.
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {orders.map(o => (
+              <div key={o.id} style={{ background: '#FFFEFA', border: `1px solid ${o.fulfilled ? 'rgba(61,122,79,0.4)' : 'rgba(92,58,33,0.12)'}`, borderRadius: '12px', padding: '16px 18px', opacity: o.fulfilled ? 0.7 : 1, transition: 'opacity 0.2s' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px', flexWrap: 'wrap' }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                      <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '20px', fontWeight: 600, color: '#2A1810' }}>
+                        {o.pickup_time_display || o.pickup_time}
+                      </span>
+                      <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '18px', fontStyle: 'italic', color: '#5C3A21' }}>
+                        {o.customer?.name || 'Guest'}
+                      </span>
+                      <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '9px', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, padding: '3px 9px', borderRadius: '999px', background: o.payment_status === 'paid' ? 'rgba(61,122,79,0.15)' : 'rgba(92,58,33,0.1)', color: o.payment_status === 'paid' ? '#3D7A4F' : '#5C3A21' }}>
+                        {o.payment_status === 'paid' ? 'Paid' : 'Pay at pickup'}
+                      </span>
+                    </div>
+                    <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '13px', color: '#3D2817', marginTop: '7px', lineHeight: 1.5 }}>
+                      {itemsSummary(o.items)}
+                    </div>
+                    {o.customer?.phone && (
+                      <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', color: '#5C3A21', marginTop: '4px' }}>{o.customer.phone}</div>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px', flexShrink: 0 }}>
+                    <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '22px', fontWeight: 600, color: '#2A1810' }}>${(Number(o.total) || 0).toFixed(2)}</span>
+                    <button onClick={() => toggleFulfilled(o)}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: o.fulfilled ? 'rgba(61,122,79,0.12)' : '#2A1810', color: o.fulfilled ? '#3D7A4F' : '#FAF1E4', border: 'none', borderRadius: '999px', padding: '8px 16px', fontFamily: '"Outfit", sans-serif', fontSize: '10px', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                      {o.fulfilled ? <><CheckCircle2 size={13} /> Done</> : <>Mark ready</>}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{ textAlign: 'center', marginTop: '32px' }}>
+          <button onClick={() => setPage('home')} data-compact style={{ background: 'none', border: 'none', fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '16px', color: '#5C3A21', cursor: 'pointer', borderBottom: '1px solid #5C3A21', paddingBottom: '3px' }}>
+            ← Back to site
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const Footer = ({ setPage }) => (
   <footer style={{ background: '#1A0F08', color: '#F0E2C9', padding: '48px 20px 28px 20px' }}>
     <div style={{ maxWidth: '1280px', margin: '0 auto' }}>
@@ -2171,12 +2513,24 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [authOpen, setAuthOpen] = useState(false);
   const [pendingReorder, setPendingReorder] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   // Track auth state across the whole app.
   useEffect(() => {
     const unsub = onAuthChange((u) => setUser(u));
     return unsub;
   }, []);
+
+  // Detect owner/admin status whenever the user changes.
+  useEffect(() => {
+    let alive = true;
+    if (user) {
+      amIAdmin().then(ok => { if (alive) setIsAdmin(ok); });
+    } else {
+      setIsAdmin(false);
+    }
+    return () => { alive = false; };
+  }, [user]);
 
   useEffect(() => { window.scrollTo({ top: 0, behavior: 'smooth' }); }, [page]);
 
@@ -2215,8 +2569,9 @@ export default function App() {
         {page === 'home' && <HomePage setPage={setPage} />}
         {page === 'order' && <OrderPage cart={cart} setCart={setCart} user={user} onSignIn={() => setAuthOpen(true)} />}
         {page === 'events' && <EventsPage />}
-        {page === 'dashboard' && user && <DashboardPage user={user} setPage={setPage} onReorder={handleReorder} />}
+        {page === 'dashboard' && user && <DashboardPage user={user} setPage={setPage} onReorder={handleReorder} isAdmin={isAdmin} />}
         {page === 'dashboard' && !user && <HomePage setPage={setPage} />}
+        {page === 'owner' && <OwnerDashboard user={user} setPage={setPage} />}
       </div>
       <Footer setPage={setPage} />
       {authOpen && <AuthModal onClose={() => setAuthOpen(false)} />}
