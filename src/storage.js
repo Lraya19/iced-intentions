@@ -72,8 +72,9 @@ export async function bookSlot(date, slotTime, customerName) {
   if (!isSupabaseConfigured) {
     const all = LS.get('ii_slots', {});
     all[date] = all[date] || {};
-    if (all[date][slotTime]) throw new Error('SLOT_TAKEN');
-    all[date][slotTime] = customerName || 'Booked';
+    const cur = typeof all[date][slotTime] === 'number' ? all[date][slotTime] : (all[date][slotTime] ? 1 : 0);
+    if (cur >= 2) throw new Error('SLOT_TAKEN');
+    all[date][slotTime] = cur + 1;
     LS.set('ii_slots', all);
     return;
   }
