@@ -30,9 +30,9 @@ const BUSINESS = {
   address: import.meta.env.VITE_BUSINESS_ADDRESS || '1247 Las Colinas Blvd, Irving, TX 75039',
   instagram: import.meta.env.VITE_BUSINESS_INSTAGRAM || '@icedintentions',
   hours: {
-    weekday: '7:00 AM – 6:00 PM',
-    saturday: '8:00 AM – 7:00 PM',
-    sunday: '8:00 AM – 4:00 PM',
+    tuesday: '6:00 – 8:30 AM',
+    thursday: '6:00 – 11:00 AM',
+    friday: '6:00 – 10:00 AM',
   },
 };
 
@@ -44,38 +44,39 @@ const MENU = {
     title: 'Matcha',
     note: 'All matchas made with oatmilk',
     items: [
-      { id: 'matcha-verdi', photo: '/drinks/matcha-verdi.jpeg', name: 'Matcha Verdí', desc: 'Pure ceremonial-grade matcha, oatmilk, kissed with vanilla', priceL: 9.50, priceBucket: 17.00, gradient: 'linear-gradient(180deg, #F5F0DC 0%, #B5C99A 50%, #6B8E4E 100%)' },
-      { id: 'matcha-besitos', photo: '/drinks/matcha-besitos.jpeg', name: 'Matcha Besitos', desc: 'Matcha layered with Biscoff cookie crumble & soft top', priceL: 9.50, priceBucket: 17.00, gradient: 'linear-gradient(180deg, #E8C896 0%, #B5C99A 40%, #6B8E4E 100%)' },
-      { id: 'matcha-blanqui', photo: '/drinks/matcha-blanqui.jpeg', name: 'Matcha Blanquí', desc: 'White chocolate matcha dream, silky and sweet', priceL: 9.50, priceBucket: 17.00, gradient: 'linear-gradient(180deg, #FFF8E7 0%, #D4DEAB 50%, #8FA968 100%)' },
-      { id: 'matcha-rosa', photo: '/drinks/matcha-rosa.jpeg', name: 'Matcha Rosa', desc: 'Strawberry compote pooled beneath jade matcha', priceL: 9.50, priceBucket: 17.00, gradient: 'linear-gradient(180deg, #B5C99A 0%, #B5C99A 45%, #FFE4D6 60%, #C8345A 100%)' },
+      { id: 'matcha-verdi', photo: '/drinks/matcha-verdi.jpeg', name: 'Matcha Verdí', desc: 'Pure ceremonial-grade matcha with oatmilk & a kiss of vanilla', priceL: 10.00, priceBucket: 17.00, gradient: 'linear-gradient(180deg, #F5F0DC 0%, #B5C99A 50%, #6B8E4E 100%)' },
+      { id: 'matcha-besitos', photo: '/drinks/matcha-besitos.jpeg', name: 'Matcha Besitos', desc: 'Cookie butter matcha with a Biscoff crumble & soft top', priceL: 10.00, priceBucket: 17.00, gradient: 'linear-gradient(180deg, #E8C896 0%, #B5C99A 40%, #6B8E4E 100%)' },
+      { id: 'matcha-blanqui', photo: '/drinks/matcha-blanqui.jpeg', name: 'Matcha Blanquí', desc: 'Banana matcha — smooth, creamy & lightly sweet', priceL: 10.00, priceBucket: 17.00, gradient: 'linear-gradient(180deg, #FFF8E7 0%, #D4DEAB 50%, #8FA968 100%)' },
+      { id: 'matcha-rosa', photo: '/drinks/matcha-rosa.jpeg', name: 'Matcha Rosa', desc: 'Strawberry matcha — jade matcha over sweet strawberry', priceL: 10.00, priceBucket: 17.00, gradient: 'linear-gradient(180deg, #B5C99A 0%, #B5C99A 45%, #FFE4D6 60%, #C8345A 100%)' },
     ],
   },
   lattes: {
     title: 'Lattes',
     items: [
-      { id: 'dulce-moonkiss', photo: '/drinks/dulce-moon-kiss.jpeg', name: 'Dulce Moon-Kiss', desc: 'Espresso, vanilla cream, brown sugar, dusted cinnamon', priceL: 8.00, priceBucket: 15.00, gradient: 'linear-gradient(180deg, #F5E6D3 0%, #C8A57A 50%, #6B4423 100%)' },
-      { id: 'mornenita-mornings', photo: '/drinks/mornenita-mornings.jpeg', name: 'Mornenita Mornings', desc: 'Velvet caramel ribbons, espresso, sea salt foam', priceL: 8.00, priceBucket: 15.00, gradient: 'linear-gradient(180deg, #FFF1DC 0%, #E8A85C 40%, #8B5E2C 100%)' },
-      { id: 'nube-blush', photo: '/drinks/nube-blush.jpeg', name: 'Nube Blush', desc: 'Rose-petal latte, oat foam, edible blossom', priceL: 8.00, priceBucket: 15.00, gradient: 'linear-gradient(180deg, #FFE4E1 0%, #E8A4B8 50%, #C18298 100%)' },
-      { id: 'besitos-brunette', photo: '/drinks/besitos-brunette.jpeg', name: 'Besitos Brunette', desc: 'Double espresso, dulce de leche, Biscoff crumble', priceL: 8.00, priceBucket: 15.00, gradient: 'linear-gradient(180deg, #D4A574 0%, #8B5E2C 50%, #4A2C17 100%)' },
+      { id: 'dulce-moonkiss', photo: '/drinks/mornenita-mornings.jpeg', name: 'Dulce Moon-Kiss', desc: 'Chocolate banana, topped with imported cinnamon from El Salvador', priceL: 8.00, priceBucket: 15.00, gradient: 'linear-gradient(180deg, #F5E6D3 0%, #C8A57A 50%, #6B4423 100%)' },
+      { id: 'mornenita-mornings', photo: '/drinks/dulce-moon-kiss.jpeg', name: 'Mornenita Mornings', desc: 'Cinnamon churro flavor with cinnamon-dusted foam', priceL: 8.00, priceBucket: 15.00, gradient: 'linear-gradient(180deg, #FFF1DC 0%, #E8A85C 40%, #8B5E2C 100%)' },
+      { id: 'nube-blush', photo: '/drinks/nube-blush.jpeg', name: 'Nube Blush', desc: 'Vanilla caramel with a silky vanilla foam', priceL: 8.00, priceBucket: 15.00, gradient: 'linear-gradient(180deg, #FFE4E1 0%, #E8A4B8 50%, #C18298 100%)' },
+      { id: 'besitos-brunette', photo: '/drinks/besitos-brunette.jpeg', name: 'Besitos Brunette', desc: 'Cookie butter latte with cookie butter cold foam', priceL: 8.00, priceBucket: 15.00, gradient: 'linear-gradient(180deg, #D4A574 0%, #8B5E2C 50%, #4A2C17 100%)' },
     ],
   },
   refreshers: {
-    title: 'Lemonades & Refreshers',
-    sizeNote: '32 oz / 24 oz',
+    title: 'Refreshers',
+    sizeNote: '32 oz',
     items: [
-      { id: 'tropic-bonita', name: 'Tropic Bonita', desc: 'Mango, passionfruit, hibiscus lemonade', priceL: 8.00, priceBucket: 8.00, gradient: 'linear-gradient(180deg, #FFD4A3 0%, #FFA76C 50%, #E85D3C 100%)' },
-      { id: 'sunkissed-cielo', photo: '/drinks/sunkissed-cielo.jpeg', name: 'SunKissed Cielo', desc: 'Peach, guava, sparkling lemon clouds', priceL: 8.00, priceBucket: 8.00, gradient: 'linear-gradient(180deg, #FFE4B5 0%, #FFB87A 50%, #FF8B4A 100%)' },
-      { id: 'coquetta-crush', photo: '/drinks/coquetta-crush.jpeg', name: 'Coquetta Crush', desc: 'Strawberry-rose lemonade, coconut foam', priceL: 9.00, priceBucket: 9.00, gradient: 'linear-gradient(180deg, #FFF0F0 0%, #FFB8C8 50%, #E8557A 100%)' },
-      { id: 'summer-chula', name: 'Summer Chula', desc: 'Watermelon-lime, basil, chamoy rim', priceL: 9.00, priceBucket: 9.00, gradient: 'linear-gradient(180deg, #FFC8C8 0%, #FF7A8C 50%, #C73456 100%)' },
+      { id: 'sweet-cielo', photo: '/drinks/sweet-cielo.jpeg', name: 'Sweet Cielo', desc: 'Blue raspberry refresher', priceL: 8.00, priceBucket: 8.00, singleSize: true, gradient: 'linear-gradient(180deg, #CDEBFF 0%, #6FB7E8 50%, #2E7FC2 100%)' },
+      { id: 'sunkissed-cielo', photo: '/drinks/sunkissed-cielo.jpeg', name: 'SunKissed Cielo', desc: 'Mango dragonfruit refresher', priceL: 8.00, priceBucket: 8.00, singleSize: true, gradient: 'linear-gradient(180deg, #FFD8A8 0%, #E86A9E 55%, #9C2B8A 100%)' },
+      { id: 'coquetta-crush', photo: '/drinks/coquetta-crush.jpeg', name: 'Coquetta Crush', desc: 'Strawberry refresher', priceL: 8.00, priceBucket: 8.00, singleSize: true, gradient: 'linear-gradient(180deg, #FFF0F0 0%, #FFB8C8 50%, #E8557A 100%)' },
+      { id: 'summer-chula', photo: '/drinks/summer-chula.jpeg', name: 'Summer Chula', desc: 'Mango with a chamoy rim', priceL: 8.00, priceBucket: 8.00, singleSize: true, gradient: 'linear-gradient(180deg, #FFC98A 0%, #F0803C 45%, #B5322E 100%)' },
     ],
   },
   energy: {
     title: 'Energy Drinks',
+    note: 'All energy drinks are RedBull-based',
     items: [
-      { id: 'paraiso-fuse', name: 'Paraíso Fuse', desc: 'Tropical paradise, coconut, pineapple lift', priceL: 8.00, priceBucket: 12.00, gradient: 'linear-gradient(180deg, #FFEBC4 0%, #FFD17A 50%, #FFA630 100%)' },
-      { id: 'cremita-fuse', name: 'Cremita Fuse', desc: 'Horchata cream, cinnamon, energy boost', priceL: 8.00, priceBucket: 12.00, gradient: 'linear-gradient(180deg, #FFF5E1 0%, #F5DDB3 50%, #C9A86A 100%)' },
-      { id: 'azulita-fuse', photo: '/drinks/azulita-fuse.jpeg', name: 'Azulita Fuse', desc: 'Blue raspberry, coconut cream, pop rocks', priceL: 8.00, priceBucket: 12.00, gradient: 'linear-gradient(180deg, #B8F0E8 0%, #5DD4C5 50%, #2BA89A 100%)' },
-      { id: 'verde-fuse', name: 'Verde Fuse', desc: 'Kiwi, lime, mint, vibrant green energy', priceL: 8.00, priceBucket: 12.00, gradient: 'linear-gradient(180deg, #DEF5C9 0%, #95D478 50%, #4A9B2D 100%)' },
+      { id: 'paraiso-fuse', name: 'Paraíso Fuse', desc: 'Tropical RedBull refresher', priceL: 8.00, priceBucket: 12.00, gradient: 'linear-gradient(180deg, #FFEBC4 0%, #FFD17A 50%, #FFA630 100%)' },
+      { id: 'cremita-fuse', name: 'Cremita Fuse', desc: 'Piña colada RedBull refresher', priceL: 8.00, priceBucket: 12.00, gradient: 'linear-gradient(180deg, #FFF5E1 0%, #F5DDB3 50%, #C9A86A 100%)' },
+      { id: 'azulita-fuse', photo: '/drinks/azulita-fuse.jpeg', name: 'Azulita Fuse', desc: 'Blue raspberry RedBull refresher', priceL: 8.00, priceBucket: 12.00, gradient: 'linear-gradient(180deg, #B8F0E8 0%, #5DD4C5 50%, #2BA89A 100%)' },
+      { id: 'verde-fuse', name: 'Verde Fuse', desc: 'Green apple RedBull refresher', priceL: 8.00, priceBucket: 12.00, gradient: 'linear-gradient(180deg, #DEF5C9 0%, #95D478 50%, #4A9B2D 100%)' },
     ],
   },
 };
@@ -85,13 +86,21 @@ const ADD_ONS = [
   { id: 'extra-shot', name: 'Extra Shot', price: 0.75 },
   { id: 'chamoy', name: 'Chamoy', price: 0.75 },
   { id: 'extra-matcha', name: 'Extra Matcha', price: 1.00 },
-  { id: 'custom-print', name: 'Custom Print', price: 5.00 },
 ];
 
 const SIZES = [
   { id: 'L', label: 'Large (24 oz)' },
   { id: 'BUCKET', label: 'Bucket (32 oz)' },
 ];
+
+// Look up a drink by id + a friendly size label (single-size drinks show "32 oz").
+const DRINK_BY_ID = {};
+Object.values(MENU).forEach(c => c.items.forEach(d => { DRINK_BY_ID[d.id] = d; }));
+const sizeLabel = (drinkId, size) => {
+  const d = DRINK_BY_ID[drinkId];
+  if (d && d.singleSize) return '32 oz';
+  return size === 'L' ? 'Large' : 'Bucket';
+};
 
 // ═══════════════════════════════════════════════════════
 // HELPERS
@@ -106,17 +115,63 @@ const formatLocalDate = (d) => {
   return `${y}-${m}-${day}`;
 };
 
-const generateTimeSlots = () => {
+// ── PICKUP SCHEDULE ────────────────────────────────────
+// Only these weekdays are open, each with its own hours. 15-min slots,
+// and each slot can hold up to SLOT_CAPACITY orders.
+// getDay(): 0=Sun 1=Mon 2=Tue 3=Wed 4=Thu 5=Fri 6=Sat
+const SLOT_CAPACITY = 2;
+const PICKUP_SCHEDULE = {
+  2: { start: '06:00', end: '08:30' }, // Tuesday   6:00am – 8:30am
+  4: { start: '06:00', end: '11:00' }, // Thursday  6:00am – 11:00am
+  5: { start: '06:00', end: '10:00' }, // Friday    6:00am – 10:00am
+};
+
+const toDisplayTime = (h, m) => `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
+
+// Parse a YYYY-MM-DD string into a LOCAL Date (no timezone shift).
+const parseLocalDate = (iso) => {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d);
+};
+
+// Time slots for a given pickup date (based on that day's schedule).
+const generateTimeSlotsForDate = (iso) => {
+  if (!iso) return [];
+  const weekday = parseLocalDate(iso).getDay();
+  const cfg = PICKUP_SCHEDULE[weekday];
+  if (!cfg) return [];
+  const [sh, sm] = cfg.start.split(':').map(Number);
+  const [eh, em] = cfg.end.split(':').map(Number);
+  const startMin = sh * 60 + sm;
+  const endMin = eh * 60 + em;
   const slots = [];
-  for (let h = 9; h <= 17; h++) {
-    for (let m = 0; m < 60; m += 15) {
-      if (h === 17 && m > 45) break;
-      const time = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-      const display = `${((h - 1) % 12) + 1}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
-      slots.push({ time, display });
-    }
+  for (let t = startMin; t <= endMin; t += 15) {
+    const h = Math.floor(t / 60);
+    const m = t % 60;
+    slots.push({ time: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`, display: toDisplayTime(h, m) });
   }
   return slots;
+};
+
+// The next open pickup days (Tue/Thu/Fri), looking a few weeks ahead.
+const getUpcomingPickupDays = (limit = 8) => {
+  const days = [];
+  const today = new Date();
+  const todayIso = formatLocalDate(today);
+  for (let i = 0; i < 28 && days.length < limit; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    if (!PICKUP_SCHEDULE[d.getDay()]) continue;
+    const iso = formatLocalDate(d);
+    days.push({
+      iso,
+      day: d.toLocaleDateString('en-US', { weekday: 'short' }),
+      date: d.getDate(),
+      month: d.toLocaleDateString('en-US', { month: 'short' }),
+      isToday: iso === todayIso,
+    });
+  }
+  return days;
 };
 
 const getNextSevenDays = () => {
@@ -449,7 +504,7 @@ const HomePage = ({ setPage }) => {
             our little story
           </h2>
           <p style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: 'clamp(16px, 4vw, 22px)', lineHeight: 1.7, color: '#3D2817', margin: '24px 0', fontStyle: 'italic' }}>
-            Born from late-night conversations and a deep love for cafecito culture, Iced Intentions is more than a drink stop — it's a slow morning, a kiss before work, a Sunday afternoon spilled across the counter. Every recipe carries a small intention: <em>verdí</em> for grounding, <em>besitos</em> for sweetness, <em>cielo</em> for the kind of day that feels like sky.
+            Iced Intentions was created from a love of cafecito, creativity, and bringing people together. Every drink is handcrafted with intention, inspired by comfort, conversation, and the little moments that make life sweeter. Whether you're a coffee lover, a matcha enthusiast, or just stopping by for something refreshing, we hope every cup feels like it was made just for you.
           </p>
           <p style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.2em', textTransform: 'uppercase', color: '#5C3A21', marginTop: '32px' }}>
             — Made in Bakersfield, with mucho amor —
@@ -596,9 +651,10 @@ const HomePage = ({ setPage }) => {
               <h3 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '26px', color: '#2A1810', margin: '0 0 20px 0', fontWeight: 500 }}>Hours</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {[
-                  { day: 'Mon — Fri', hours: BUSINESS.hours.weekday },
-                  { day: 'Saturday', hours: BUSINESS.hours.saturday },
-                  { day: 'Sunday', hours: BUSINESS.hours.sunday },
+                  { day: 'Tuesday', hours: BUSINESS.hours.tuesday },
+                  { day: 'Thursday', hours: BUSINESS.hours.thursday },
+                  { day: 'Friday', hours: BUSINESS.hours.friday },
+                  { day: 'Mon · Wed · Sat · Sun', hours: 'Closed' },
                 ].map(row => (
                   <div key={row.day} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dotted rgba(92, 58, 33, 0.3)', paddingBottom: '8px', gap: '12px' }}>
                     <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', color: '#5C3A21', letterSpacing: '0.05em' }}>{row.day}</span>
@@ -636,7 +692,7 @@ const CheckoutInput = ({ label, value, onChange, placeholder, type = 'text' }) =
 // DRINK CUSTOMIZER MODAL
 // ═══════════════════════════════════════════════════════
 const DrinkCustomizer = ({ drink, onClose, onAdd, user, onSignIn }) => {
-  const [size, setSize] = useState('L');
+  const [size, setSize] = useState(drink.singleSize ? 'BUCKET' : 'L');
   const [addOns, setAddOns] = useState([]);
   const [qty, setQty] = useState(1);
   const [notes, setNotes] = useState('');
@@ -704,6 +760,12 @@ const DrinkCustomizer = ({ drink, onClose, onAdd, user, onSignIn }) => {
 
           <div style={{ marginBottom: '20px' }}>
             <label style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.2em', textTransform: 'uppercase', color: '#5C3A21', display: 'block', marginBottom: '10px' }}>Size</label>
+            {drink.singleSize ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', padding: '14px 16px', borderRadius: '4px', border: '1.5px solid #2A1810', background: '#FFFEFA' }}>
+                <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '13px', letterSpacing: '0.06em', fontWeight: 500, color: '#2A1810' }}>32 oz — one size</span>
+                <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '22px', fontWeight: 600, color: '#2A1810' }}>${drink.priceL.toFixed(2)}</span>
+              </div>
+            ) : (
             <div style={{ display: 'flex', gap: '10px' }}>
               {SIZES.map(s => {
                 const price = s.id === 'L' ? drink.priceL : drink.priceBucket;
@@ -716,6 +778,7 @@ const DrinkCustomizer = ({ drink, onClose, onAdd, user, onSignIn }) => {
                 );
               })}
             </div>
+            )}
           </div>
 
           <div style={{ marginBottom: '20px' }}>
@@ -783,7 +846,7 @@ const DrinkCustomizer = ({ drink, onClose, onAdd, user, onSignIn }) => {
 // CHECKOUT FLOW
 // ═══════════════════════════════════════════════════════
 const CheckoutFlow = ({ cart, cartTotal, user, paused, onBack, onComplete }) => {
-  const [selectedDate, setSelectedDate] = useState(getNextSevenDays()[0].iso);
+  const [selectedDate, setSelectedDate] = useState(getUpcomingPickupDays()[0]?.iso || getNextSevenDays()[0].iso);
   const [selectedTime, setSelectedTime] = useState(null);
   const [bookedSlots, setBookedSlots] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -838,8 +901,8 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, onBack, onComplete }) => 
   const effectiveTotal = Math.max(0, cartTotal - discount);
   const isFreeOrder = effectiveTotal <= 0 && (canRedeem && redeemOn);
 
-  const days = useMemo(() => getNextSevenDays(), []);
-  const allSlots = useMemo(() => generateTimeSlots(), []);
+  const days = useMemo(() => getUpcomingPickupDays(), []);
+  const allSlots = useMemo(() => generateTimeSlotsForDate(selectedDate), [selectedDate]);
 
   // Tick every 30 seconds so past slots disappear in near-real-time
   useEffect(() => {
@@ -882,7 +945,14 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, onBack, onComplete }) => 
     return () => { cancelled = true; };
   }, [payMode, squareOn, cartTotal]);
 
-  const isSlotTaken = (time) => Boolean(bookedSlots[time]);
+  // A slot is full once it reaches capacity. booked_times stores a count
+  // per time (older rows may store a name string — treat that as 1).
+  const slotCount = (time) => {
+    const v = bookedSlots[time];
+    if (typeof v === 'number') return v;
+    return v ? 1 : 0;
+  };
+  const isSlotTaken = (time) => slotCount(time) >= SLOT_CAPACITY;
 
   // BUFFER: customer can't pick a slot less than this many minutes from now.
   // Gives staff prep time + accounts for travel time.
@@ -1118,10 +1188,12 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, onBack, onComplete }) => 
               <div style={{ display: 'grid', gap: '6px', gridTemplateColumns: 'repeat(auto-fill, minmax(86px, 1fr))' }}>
                 {openSlots.map(slot => {
                   const selected = selectedTime === slot.time;
+                  const lastSpot = slotCount(slot.time) === SLOT_CAPACITY - 1;
                   return (
                     <button key={slot.time} onClick={() => setSelectedTime(slot.time)} data-compact
-                      style={{ padding: '12px 6px', borderRadius: '3px', border: `1.5px solid ${selected ? '#E8A4B8' : 'rgba(92, 58, 33, 0.15)'}`, background: selected ? '#E8A4B8' : '#FAF1E4', color: '#2A1810', fontFamily: '"Outfit", sans-serif', fontSize: '12px', fontWeight: selected ? 600 : 400, cursor: 'pointer', transition: 'all 0.15s' }}>
+                      style={{ padding: '10px 6px', borderRadius: '3px', border: `1.5px solid ${selected ? '#E8A4B8' : 'rgba(92, 58, 33, 0.15)'}`, background: selected ? '#E8A4B8' : '#FAF1E4', color: '#2A1810', fontFamily: '"Outfit", sans-serif', fontSize: '12px', fontWeight: selected ? 600 : 400, cursor: 'pointer', transition: 'all 0.15s', lineHeight: 1.3 }}>
                       {slot.display}
+                      {lastSpot && <span style={{ display: 'block', fontSize: '8.5px', letterSpacing: '0.08em', textTransform: 'uppercase', color: '#A83A56', marginTop: '2px' }}>1 left</span>}
                     </button>
                   );
                 })}
@@ -1388,7 +1460,7 @@ const CartDrawer = ({ cart, cartTotal, onClose, onRemove, onCheckout, onBrowse }
                         {item.name}
                       </div>
                       <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', color: '#5C3A21', marginTop: '4px', letterSpacing: '0.04em' }}>
-                        {item.size === 'L' ? 'Large' : 'Bucket'} · Qty {item.qty}
+                        {sizeLabel(item.drinkId, item.size)} · Qty {item.qty}
                         {item.addOns.length > 0 && ` · +${item.addOns.length} add-on${item.addOns.length > 1 ? 's' : ''}`}
                       </div>
                       {item.notes && (
@@ -1539,9 +1611,11 @@ const OrderPage = ({ cart, setCart, user, onSignIn }) => {
                   <p style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11.5px', color: '#5C3A21', lineHeight: 1.5, margin: '0 0 14px 0', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'break-word', minHeight: '34px' }}>{drink.desc}</p>
                   <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
                     <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '13px', color: '#5C3A21', fontWeight: 500 }}>
-                      {drink.priceBucket !== drink.priceL
-                        ? <>Bucket <span style={{ color: '#2A1810', fontWeight: 600 }}>${drink.priceBucket.toFixed(2)}</span></>
-                        : <>One size</>}
+                      {drink.singleSize
+                        ? <>32 oz</>
+                        : drink.priceBucket !== drink.priceL
+                          ? <>Bucket <span style={{ color: '#2A1810', fontWeight: 600 }}>${drink.priceBucket.toFixed(2)}</span></>
+                          : <>One size</>}
                     </span>
                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: disabled ? 'rgba(92,58,33,0.25)' : '#2A1810', color: '#FAF1E4', borderRadius: '999px', padding: '7px 14px', fontFamily: '"Outfit", sans-serif', fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 500, flexShrink: 0 }}>
                       {isSoldOut ? 'Sold out' : 'Customize'}
@@ -2084,7 +2158,7 @@ const DashboardPage = ({ user, setPage, onReorder, isAdmin }) => {
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '18px', fontStyle: 'italic', fontWeight: 500, color: '#2A1810' }}>{fav.label || fav.drink.name}</div>
                         <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', color: '#5C3A21', marginTop: '2px' }}>
-                          {fav.drink.name} · {fav.drink.size === 'L' ? 'Large' : 'Bucket'}
+                          {fav.drink.name} · {sizeLabel(fav.drink.id, fav.drink.size)}
                           {fav.drink.addOns?.length > 0 && ` · +${fav.drink.addOns.length} add-on${fav.drink.addOns.length > 1 ? 's' : ''}`}
                           {fav.drink.notes && ` · "${fav.drink.notes}"`}
                         </div>
@@ -2289,7 +2363,7 @@ const OwnerDashboard = ({ user, setPage }) => {
   const revenue = paidOrders.reduce((s, o) => s + (Number(o.total) || 0), 0);
   const pendingCount = orders.filter(o => !o.fulfilled).length;
 
-  const itemsSummary = (items) => (items || []).map(it => `${it.qty}× ${it.name} (${it.size === 'L' ? 'L' : 'Bucket'})`).join(', ');
+  const itemsSummary = (items) => (items || []).map(it => `${it.qty}× ${it.name} (${sizeLabel(it.drinkId, it.size)})`).join(', ');
 
   return (
     <div style={{ background: '#FAF1E4', minHeight: '100vh', padding: '32px 20px 80px 20px' }}>
@@ -2544,6 +2618,7 @@ export default function App() {
     const cartItem = {
       ...drink,
       id: `${drink.id}-${Date.now()}`,
+      drinkId: drink.drinkId || drink.id,
       qty: drink.qty || 1,
       lineTotal,
     };
