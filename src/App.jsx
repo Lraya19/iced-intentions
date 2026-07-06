@@ -73,10 +73,10 @@ const MENU = {
     title: 'Energy Drinks',
     note: 'All energy drinks are RedBull-based',
     items: [
-      { id: 'paraiso-fuse', name: 'Paraíso Fuse', desc: 'Tropical RedBull refresher', priceL: 8.00, priceBucket: 12.00, gradient: 'linear-gradient(180deg, #FFEBC4 0%, #FFD17A 50%, #FFA630 100%)' },
-      { id: 'cremita-fuse', name: 'Cremita Fuse', desc: 'Piña colada RedBull refresher', priceL: 8.00, priceBucket: 12.00, gradient: 'linear-gradient(180deg, #FFF5E1 0%, #F5DDB3 50%, #C9A86A 100%)' },
+      { id: 'paraiso-fuse', photo: '/drinks/paraiso-fuse.jpeg', name: 'Paraíso Fuse', desc: 'Tropical RedBull refresher', priceL: 8.00, priceBucket: 12.00, gradient: 'linear-gradient(180deg, #FFEBC4 0%, #FFD17A 50%, #FFA630 100%)' },
+      { id: 'cremita-fuse', photo: '/drinks/cremita-fuse.jpeg', name: 'Cremita Fuse', desc: 'Piña colada RedBull refresher', priceL: 8.00, priceBucket: 12.00, gradient: 'linear-gradient(180deg, #FFF5E1 0%, #F5DDB3 50%, #C9A86A 100%)' },
       { id: 'azulita-fuse', photo: '/drinks/azulita-fuse.jpeg', name: 'Azulita Fuse', desc: 'Blue raspberry RedBull refresher', priceL: 8.00, priceBucket: 12.00, gradient: 'linear-gradient(180deg, #B8F0E8 0%, #5DD4C5 50%, #2BA89A 100%)' },
-      { id: 'verde-fuse', name: 'Verde Fuse', desc: 'Green apple RedBull refresher', priceL: 8.00, priceBucket: 12.00, gradient: 'linear-gradient(180deg, #DEF5C9 0%, #95D478 50%, #4A9B2D 100%)' },
+      { id: 'verde-fuse', photo: '/drinks/verde-fuse.jpeg', name: 'Verde Fuse', desc: 'Green apple RedBull refresher', priceL: 8.00, priceBucket: 12.00, gradient: 'linear-gradient(180deg, #DEF5C9 0%, #95D478 50%, #4A9B2D 100%)' },
     ],
   },
 };
