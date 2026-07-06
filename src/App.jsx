@@ -11,7 +11,7 @@ import { sendOrderEmail, sendEventEmail } from './email';
 import {
   isSquareConfigured, initSquarePayments, initApplePay, tokenize, chargePayment,
 } from './square';
-import { sendMagicLink, onAuthChange, signOut, displayName } from './auth';
+import { sendLoginCode, verifyLoginCode, onAuthChange, signOut, displayName } from './auth';
 import {
   STAMPS_FOR_REWARD, getLoyaltyBalance, getLoyaltyHistory, getMyOrders,
   getFavorites, addFavorite, removeFavorite,
@@ -1878,13 +1878,29 @@ const EventsPage = () => {
 // ═══════════════════════════════════════════════════════
 const AuthModal = ({ onClose, initialMode = 'login' }) => {
   const [mode, setMode] = useState(initialMode); // 'login' | 'join'
+  const [step, setStep] = useState('email');     // 'email' | 'code'
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
+  const [code, setCode] = useState('');
   const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [resendIn, setResendIn] = useState(0);
   const [error, setError] = useState('');
+  const codeRef = useRef(null);
 
-  const submit = async () => {
+  // Countdown for the "resend code" link.
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const t = setTimeout(() => setResendIn(resendIn - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendIn]);
+
+  // Autofocus the code box when we get there.
+  useEffect(() => {
+    if (step === 'code') setTimeout(() => codeRef.current?.focus(), 60);
+  }, [step]);
+
+  const sendCode = async () => {
     setError('');
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setError('Please enter a valid email.');
@@ -1892,14 +1908,33 @@ const AuthModal = ({ onClose, initialMode = 'login' }) => {
     }
     setSending(true);
     try {
-      // Same magic-link flow for both: Supabase signs in an existing user or
-      // creates the account if they're new. Name is only sent when joining.
-      await sendMagicLink(email, mode === 'join' ? name : '');
-      setSent(true);
+      await sendLoginCode(email, mode === 'join' ? name : '');
+      setStep('code');
+      setCode('');
+      setResendIn(30);
     } catch (err) {
-      setError(err.message || 'Could not send the link. Please try again.');
+      setError(err.message || 'Could not send your code. Please try again.');
     } finally {
       setSending(false);
+    }
+  };
+
+  const verify = async () => {
+    setError('');
+    const clean = code.replace(/\D/g, '');
+    if (clean.length < 6) {
+      setError('Enter the 6-digit code from your email.');
+      return;
+    }
+    setVerifying(true);
+    try {
+      await verifyLoginCode(email, clean);
+      // onAuthChange (app-level) will pick up the new session and log them in.
+      onClose();
+    } catch (err) {
+      setError(err.message || 'Could not verify your code.');
+    } finally {
+      setVerifying(false);
     }
   };
 
@@ -1915,19 +1950,55 @@ const AuthModal = ({ onClose, initialMode = 'login' }) => {
             <InfinityHeart size={36} color="#2A1810" />
           </div>
 
-          {sent ? (
+          {step === 'code' ? (
             <>
               <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
                 <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: '#F0E2C9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <Mail size={26} color="#2A1810" />
                 </div>
               </div>
-              <h2 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '28px', color: '#2A1810', margin: '0 0 10px 0', fontWeight: 500 }}>Check your email</h2>
-              <p style={{ fontFamily: '"Outfit", sans-serif', fontSize: '14px', color: '#5C3A21', lineHeight: 1.6, margin: 0 }}>
-                We sent a sign-in link to <strong>{email}</strong>. Tap it and you'll be signed in — no password needed.
+              <h2 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '28px', color: '#2A1810', margin: '0 0 8px 0', fontWeight: 500 }}>Enter your code</h2>
+              <p style={{ fontFamily: '"Outfit", sans-serif', fontSize: '14px', color: '#5C3A21', lineHeight: 1.6, margin: '0 0 20px 0' }}>
+                We emailed a 6-digit code to <strong>{email}</strong>. Enter it below and you're in.
               </p>
-              <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '13px', color: '#5C3A21', marginTop: '16px' }}>
-                (Check your spam folder if it's not there in a minute.)
+
+              <input
+                ref={codeRef}
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                onKeyDown={(e) => e.key === 'Enter' && verify()}
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                placeholder="••••••"
+                style={{ width: '100%', padding: '14px', borderRadius: '8px', border: '1.5px solid rgba(92,58,33,0.25)', background: '#FAF1E4', fontFamily: '"Outfit", sans-serif', fontSize: '30px', letterSpacing: '0.4em', textAlign: 'center', color: '#2A1810', outline: 'none', boxSizing: 'border-box', fontWeight: 600 }}
+              />
+
+              {error && (
+                <div style={{ background: 'rgba(232,85,122,0.1)', border: '1px solid rgba(232,85,122,0.3)', padding: '10px 12px', borderRadius: '4px', margin: '14px 0 0 0', fontFamily: '"Outfit", sans-serif', fontSize: '13px', color: '#A83A56', textAlign: 'left' }}>
+                  {error}
+                </div>
+              )}
+
+              <button onClick={verify} disabled={verifying || code.length < 6}
+                style={{ width: '100%', background: (verifying || code.length < 6) ? '#5C3A21' : '#2A1810', color: '#FAF1E4', padding: '15px', border: 'none', borderRadius: '999px', fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, cursor: (verifying || code.length < 6) ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginTop: '18px', opacity: (code.length < 6 && !verifying) ? 0.6 : 1 }}>
+                {verifying
+                  ? <><Loader2 size={15} className="spin" /> Signing you in...</>
+                  : <>Verify &amp; sign in <ChevronRight size={14} /></>}
+              </button>
+
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px', marginTop: '16px' }}>
+                <button onClick={() => { setStep('email'); setError(''); setCode(''); }} data-compact
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '14px', color: '#5C3A21', textDecoration: 'underline' }}>
+                  Change email
+                </button>
+                <span style={{ color: 'rgba(92,58,33,0.3)' }}>·</span>
+                <button onClick={sendCode} disabled={resendIn > 0 || sending} data-compact
+                  style={{ background: 'none', border: 'none', cursor: (resendIn > 0 || sending) ? 'default' : 'pointer', fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '14px', color: (resendIn > 0 || sending) ? 'rgba(92,58,33,0.5)' : '#5C3A21', textDecoration: (resendIn > 0 || sending) ? 'none' : 'underline' }}>
+                  {sending ? 'Sending...' : resendIn > 0 ? `Resend in ${resendIn}s` : 'Resend code'}
+                </button>
+              </div>
+              <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '12px', color: '#5C3A21', marginTop: '14px', opacity: 0.8 }}>
+                Can't find it? Check your spam folder.
               </p>
             </>
           ) : (
@@ -1955,7 +2026,7 @@ const AuthModal = ({ onClose, initialMode = 'login' }) => {
                 <>
                   <h2 style={{ fontFamily: '"Pinyon Script", cursive', fontSize: '40px', color: '#2A1810', margin: '0 0 4px 0', fontWeight: 400, lineHeight: 1 }}>Welcome back</h2>
                   <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '16px', color: '#5C3A21', margin: '0 0 22px 0' }}>
-                    Enter your email and we'll send your sign-in link.
+                    Enter your email and we'll send your sign-in code.
                   </p>
                 </>
               )}
@@ -1971,7 +2042,7 @@ const AuthModal = ({ onClose, initialMode = 'login' }) => {
               <div style={{ textAlign: 'left', marginBottom: '18px' }}>
                 <label style={{ fontFamily: '"Outfit", sans-serif', fontSize: '10px', letterSpacing: '0.18em', textTransform: 'uppercase', color: '#5C3A21', display: 'block', marginBottom: '4px' }}>Email *</label>
                 <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="you@email.com"
-                  onKeyDown={(e) => e.key === 'Enter' && submit()}
+                  onKeyDown={(e) => e.key === 'Enter' && sendCode()}
                   style={{ width: '100%', padding: '10px 12px', borderRadius: '4px', border: '1.5px solid rgba(92,58,33,0.2)', background: '#FAF1E4', fontFamily: '"Cormorant Garamond", serif', fontSize: '16px', color: '#2A1810', outline: 'none', height: '44px', boxSizing: 'border-box' }} />
               </div>
 
@@ -1981,16 +2052,14 @@ const AuthModal = ({ onClose, initialMode = 'login' }) => {
                 </div>
               )}
 
-              <button onClick={submit} disabled={sending}
+              <button onClick={sendCode} disabled={sending}
                 style={{ width: '100%', background: sending ? '#5C3A21' : '#2A1810', color: '#FAF1E4', padding: '15px', border: 'none', borderRadius: '999px', fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, cursor: sending ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
                 {sending
                   ? <><Loader2 size={15} className="spin" /> Sending...</>
-                  : <>{mode === 'join' ? 'Send my sign-in link' : 'Send my log-in link'} <ChevronRight size={14} /></>}
+                  : <>Send my code <ChevronRight size={14} /></>}
               </button>
               <p style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', color: '#5C3A21', opacity: 0.75, marginTop: '14px', lineHeight: 1.5 }}>
-                {mode === 'join'
-                  ? "We'll email you a secure link — no password to remember. By joining you agree to receive your loyalty updates."
-                  : "We'll email you a secure link — no password to remember."}
+                We'll email you a 6-digit code — no password to remember.{mode === 'join' ? ' By joining you agree to receive your loyalty updates.' : ''}
               </p>
             </>
           )}
