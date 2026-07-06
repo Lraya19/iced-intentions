@@ -1,27 +1,50 @@
 // ═══════════════════════════════════════════════════════════════
-// Iced Intentions — Auth (magic link via Supabase)
+// Iced Intentions — Auth (email one-time CODE via Supabase)
 // ───────────────────────────────────────────────────────────────
-// Passwordless: the customer enters their email, gets a one-time
-// sign-in link, and lands back on the site logged in. No passwords.
+// Passwordless: the customer enters their email, receives a 6-digit
+// code, types it back into the site, and is signed in ON THE SPOT —
+// no page reload, no jumping to a new tab. No passwords.
 // ═══════════════════════════════════════════════════════════════
 
 import { supabase, isSupabaseConfigured } from './supabase';
 
-// Send a magic sign-in link to the given email.
+// Send a one-time sign-in CODE to the given email.
 // `fullName` is stored in user metadata on first sign-up so we can
-// greet them and prefill checkout.
-export async function sendMagicLink(email, fullName) {
+// greet them and prefill checkout. shouldCreateUser=true means the
+// same flow works whether they're new or returning.
+export async function sendLoginCode(email, fullName) {
   if (!isSupabaseConfigured) {
     throw new Error('Accounts are not available right now.');
   }
   const { error } = await supabase.auth.signInWithOtp({
     email: email.trim(),
     options: {
-      emailRedirectTo: window.location.origin,
+      shouldCreateUser: true,
       data: fullName ? { full_name: fullName.trim() } : undefined,
     },
   });
-  if (error) throw new Error(error.message || 'Could not send the sign-in link.');
+  if (error) throw new Error(error.message || 'Could not send your code.');
+}
+
+// Verify the 6-digit code and establish the session immediately.
+export async function verifyLoginCode(email, token) {
+  if (!isSupabaseConfigured) {
+    throw new Error('Accounts are not available right now.');
+  }
+  const { data, error } = await supabase.auth.verifyOtp({
+    email: email.trim(),
+    token: String(token).trim(),
+    type: 'email',
+  });
+  if (error) {
+    // Friendlier message for the common wrong/expired case.
+    const m = (error.message || '').toLowerCase();
+    if (m.includes('expired') || m.includes('invalid') || m.includes('token')) {
+      throw new Error('That code didn\'t work. Double-check it or request a new one.');
+    }
+    throw new Error(error.message || 'Could not verify your code.');
+  }
+  return data?.user ?? null;
 }
 
 // Get the current session's user (or null).
@@ -35,7 +58,6 @@ export async function getCurrentUser() {
 // (sign-in, sign-out, token refresh). Returns an unsubscribe function.
 export function onAuthChange(cb) {
   if (!isSupabaseConfigured) { cb(null); return () => {}; }
-  // Fire once with the current state.
   supabase.auth.getUser().then(({ data }) => cb(data?.user ?? null));
   const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
     cb(session?.user ?? null);
