@@ -1923,7 +1923,7 @@ const AuthModal = ({ onClose, initialMode = 'login' }) => {
     setError('');
     const clean = code.replace(/\D/g, '');
     if (clean.length < 6) {
-      setError('Enter the 6-digit code from your email.');
+      setError('Please enter the full code from your email.');
       return;
     }
     setVerifying(true);
@@ -1959,18 +1959,18 @@ const AuthModal = ({ onClose, initialMode = 'login' }) => {
               </div>
               <h2 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '28px', color: '#2A1810', margin: '0 0 8px 0', fontWeight: 500 }}>Enter your code</h2>
               <p style={{ fontFamily: '"Outfit", sans-serif', fontSize: '14px', color: '#5C3A21', lineHeight: 1.6, margin: '0 0 20px 0' }}>
-                We emailed a 6-digit code to <strong>{email}</strong>. Enter it below and you're in.
+                We emailed a code to <strong>{email}</strong>. Enter it below and you're in.
               </p>
 
               <input
                 ref={codeRef}
                 value={code}
-                onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 10))}
                 onKeyDown={(e) => e.key === 'Enter' && verify()}
                 inputMode="numeric"
                 autoComplete="one-time-code"
-                placeholder="••••••"
-                style={{ width: '100%', padding: '14px', borderRadius: '8px', border: '1.5px solid rgba(92,58,33,0.25)', background: '#FAF1E4', fontFamily: '"Outfit", sans-serif', fontSize: '30px', letterSpacing: '0.4em', textAlign: 'center', color: '#2A1810', outline: 'none', boxSizing: 'border-box', fontWeight: 600 }}
+                placeholder="Enter code"
+                style={{ width: '100%', padding: '14px', borderRadius: '8px', border: '1.5px solid rgba(92,58,33,0.25)', background: '#FAF1E4', fontFamily: '"Outfit", sans-serif', fontSize: '28px', letterSpacing: '0.28em', textAlign: 'center', color: '#2A1810', outline: 'none', boxSizing: 'border-box', fontWeight: 600 }}
               />
 
               {error && (
