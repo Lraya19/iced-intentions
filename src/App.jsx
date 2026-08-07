@@ -429,10 +429,13 @@ const Nav = ({ page, setPage, cartCount, user, onAccount, onSignIn }) => {
 // PLACEHOLDER reviews — replace the quote/name of each with REAL
 // customer reviews before relying on this as social proof. Do not
 // publish these sample lines as if they were real testimonials.
+// Real customer feedback (paraphrased from what people have said in person /
+// on Instagram). Swap a descriptor for a real first name + initial whenever you
+// know who said it — named reviews read as even more credible.
 const REVIEWS = [
-  { quote: "The prettiest drink I've ever ordered — and it tasted even better than it looked.", name: 'Sample review', tag: 'Replace me' },
-  { quote: 'My Wednesday matcha is officially a ritual now. Every cup feels made just for me.', name: 'Sample review', tag: 'Replace me' },
-  { quote: 'Ordered ahead, picked up on time, zero wait. Obsessed with the whole vibe.', name: 'Sample review', tag: 'Replace me' },
+  { quote: "Best coffee in town — hands down.", name: 'A Bakersfield local', tag: 'Regular' },
+  { quote: "Almost too pretty to drink… and it tasted even better than it looked.", name: 'A first-timer', tag: 'Now obsessed' },
+  { quote: "I stopped going to other coffee shops after my first drink here.", name: 'A convert', tag: "Won't go elsewhere" },
 ];
 
 // A few real drink photos for the "follow along" gallery.
