@@ -423,7 +423,25 @@ const Nav = ({ page, setPage, cartCount, user, onAccount, onSignIn }) => {
 // ═══════════════════════════════════════════════════════
 // HOME PAGE
 // ═══════════════════════════════════════════════════════
-const HomePage = ({ setPage }) => {
+// ═══════════════════════════════════════════════════════
+// HOMEPAGE
+// ───────────────────────────────────────────────────────
+// PLACEHOLDER reviews — replace the quote/name of each with REAL
+// customer reviews before relying on this as social proof. Do not
+// publish these sample lines as if they were real testimonials.
+const REVIEWS = [
+  { quote: "The prettiest drink I've ever ordered — and it tasted even better than it looked.", name: 'Sample review', tag: 'Replace me' },
+  { quote: 'My Wednesday matcha is officially a ritual now. Every cup feels made just for me.', name: 'Sample review', tag: 'Replace me' },
+  { quote: 'Ordered ahead, picked up on time, zero wait. Obsessed with the whole vibe.', name: 'Sample review', tag: 'Replace me' },
+];
+
+// A few real drink photos for the "follow along" gallery.
+const HOME_GALLERY = [
+  '/drinks/matcha-rosa.jpeg', '/drinks/coquetta-crush.jpeg', '/drinks/azulita-fuse.jpeg',
+  '/drinks/sunkissed-cielo.jpeg', '/drinks/cremita-fuse.jpeg', '/drinks/verde-fuse.jpeg',
+];
+
+const HomePage = ({ setPage, onSignIn, user }) => {
   const featured = [
     { ...MENU.matcha.items[3], category: 'Matcha' },
     { ...MENU.lattes.items[1], category: 'Latte' },
@@ -564,6 +582,34 @@ const HomePage = ({ setPage }) => {
         </div>
       </section>
 
+      {/* TESTIMONIALS — social proof */}
+      <section className="section-pad" style={{ background: '#F0E2C9' }}>
+        <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: '44px' }}>
+            <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.3em', textTransform: 'uppercase', color: '#5C3A21' }}>
+              Loved in Bakersfield
+            </span>
+            <h2 style={{ fontFamily: '"Pinyon Script", cursive', fontSize: 'clamp(40px, 9vw, 76px)', color: '#2A1810', margin: '8px 0 0 0', fontWeight: 400, lineHeight: 1 }}>
+              little love notes
+            </h2>
+          </div>
+          <div className="grid-3-md">
+            {REVIEWS.map((r, i) => (
+              <div key={i} style={{ background: '#FFFEFA', borderRadius: '16px', padding: '30px 26px', border: '1px solid rgba(92,58,33,0.08)', boxShadow: '0 1px 3px rgba(42,24,16,0.05)', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ color: '#E8A4B8', fontSize: '15px', letterSpacing: '2px', marginBottom: '14px' }}>★★★★★</div>
+                <p style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '19px', fontStyle: 'italic', lineHeight: 1.5, color: '#2A1810', margin: '0 0 18px 0', flex: 1 }}>
+                  “{r.quote}”
+                </p>
+                <div>
+                  <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', fontWeight: 600, letterSpacing: '0.04em', color: '#2A1810' }}>{r.name}</div>
+                  <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '10px', letterSpacing: '0.16em', textTransform: 'uppercase', color: '#5C3A21', marginTop: '2px' }}>{r.tag}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* MENU */}
       <section className="section-pad-sm" style={{ background: '#2A1810', color: '#FAF1E4' }}>
         <div style={{ maxWidth: '1100px', margin: '0 auto' }}>
@@ -663,10 +709,54 @@ const HomePage = ({ setPage }) => {
           </div>
         </div>
       </section>
+
+      {/* REWARDS — retention layer */}
+      <section style={{ background: '#FAF1E4', padding: '0 20px 72px 20px' }}>
+        <div style={{ maxWidth: '1080px', margin: '0 auto', background: 'linear-gradient(135deg, #2A1810 0%, #5C3A21 100%)', borderRadius: '24px', padding: 'clamp(36px, 6vw, 60px)', position: 'relative', overflow: 'hidden', textAlign: 'center' }}>
+          <Sparkles size={20} style={{ position: 'absolute', top: '22px', right: '26px', color: 'rgba(232,164,184,0.6)' }} />
+          <Heart size={14} style={{ position: 'absolute', bottom: '24px', left: '28px', color: 'rgba(232,164,184,0.5)', fill: 'rgba(232,164,184,0.5)' }} />
+          <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.3em', textTransform: 'uppercase', color: '#E8A4B8' }}>
+            The Iced Intentions Club
+          </span>
+          <h2 style={{ fontFamily: '"Pinyon Script", cursive', fontSize: 'clamp(38px, 8vw, 68px)', color: '#FAF1E4', margin: '10px 0 6px 0', fontWeight: 400, lineHeight: 1 }}>
+            every cup earns a little love
+          </h2>
+          <p style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: 'clamp(17px, 3.5vw, 21px)', fontStyle: 'italic', color: 'rgba(250,241,228,0.85)', maxWidth: '560px', margin: '0 auto 26px auto', lineHeight: 1.5 }}>
+            Collect a stamp on every online order. Your 11th drink is on us — a little thank-you for coming back.
+          </p>
+          <button
+            onClick={() => (user ? setPage('dashboard') : (onSignIn ? onSignIn() : setPage('order')))}
+            style={{ background: '#E8A4B8', color: '#2A1810', padding: '15px 34px', borderRadius: '999px', border: 'none', fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+            {user ? 'View your card' : 'Join the club'} <ChevronRight size={15} />
+          </button>
+        </div>
+      </section>
+
+      {/* GALLERY — follow along / social */}
+      <section className="section-pad-sm" style={{ background: '#F0E2C9' }}>
+        <div style={{ maxWidth: '1180px', margin: '0 auto' }}>
+          <div style={{ textAlign: 'center', marginBottom: '36px' }}>
+            <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.3em', textTransform: 'uppercase', color: '#5C3A21' }}>
+              Follow along
+            </span>
+            <h2 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: 'clamp(30px, 6vw, 50px)', color: '#2A1810', margin: '10px 0 0 0', fontWeight: 500, letterSpacing: '-0.02em' }}>
+              {BUSINESS.instagram}
+            </h2>
+          </div>
+          <div className="gallery-grid">
+            {HOME_GALLERY.map((src, i) => (
+              <a key={i} href={`https://instagram.com/${BUSINESS.instagram.replace('@','')}`} target="_blank" rel="noopener noreferrer"
+                 className="gallery-cell" aria-label="Open our Instagram">
+                <img src={src} alt="Iced Intentions drink" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                <span className="gallery-overlay"><Instagram size={22} color="#FFFEFA" /></span>
+              </a>
+            ))}
+          </div>
+        </div>
+      </section>
     </div>
   );
 };
-
 // ═══════════════════════════════════════════════════════
 // CHECKOUT INPUT
 // ═══════════════════════════════════════════════════════
@@ -2707,11 +2797,11 @@ export default function App() {
     <div style={{ background: '#FAF1E4', minHeight: '100vh', overflowX: 'hidden', maxWidth: '100%' }}>
       <Nav page={page} setPage={setPage} cartCount={cartCount} user={user} onAccount={goDashboard} onSignIn={() => setAuthOpen(true)} />
       <div className="fade-in" key={page}>
-        {page === 'home' && <HomePage setPage={setPage} />}
+        {page === 'home' && <HomePage setPage={setPage} onSignIn={() => setAuthOpen(true)} user={user} />}
         {page === 'order' && <OrderPage cart={cart} setCart={setCart} user={user} onSignIn={() => setAuthOpen(true)} />}
         {page === 'events' && <EventsPage />}
         {page === 'dashboard' && user && <DashboardPage user={user} setPage={setPage} onReorder={handleReorder} isAdmin={isAdmin} />}
-        {page === 'dashboard' && !user && <HomePage setPage={setPage} />}
+        {page === 'dashboard' && !user && <HomePage setPage={setPage} onSignIn={() => setAuthOpen(true)} user={user} />}
         {page === 'owner' && <OwnerDashboard user={user} setPage={setPage} />}
       </div>
       <Footer setPage={setPage} />
