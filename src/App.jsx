@@ -30,9 +30,8 @@ const BUSINESS = {
   address: import.meta.env.VITE_BUSINESS_ADDRESS || '1247 Las Colinas Blvd, Irving, TX 75039',
   instagram: import.meta.env.VITE_BUSINESS_INSTAGRAM || '@icedintentions',
   hours: {
-    tuesday: '6:00 – 8:30 AM',
-    thursday: '6:00 – 11:00 AM',
-    friday: '6:00 – 10:00 AM',
+    wednesday: '6:00 – 9:00 AM',
+    friday: '6:00 – 9:00 AM',
   },
 };
 
@@ -121,9 +120,8 @@ const formatLocalDate = (d) => {
 // getDay(): 0=Sun 1=Mon 2=Tue 3=Wed 4=Thu 5=Fri 6=Sat
 const SLOT_CAPACITY = 2;
 const PICKUP_SCHEDULE = {
-  2: { start: '06:00', end: '08:30' }, // Tuesday   6:00am – 8:30am
-  4: { start: '06:00', end: '11:00' }, // Thursday  6:00am – 11:00am
-  5: { start: '06:00', end: '10:00' }, // Friday    6:00am – 10:00am
+  3: { start: '06:00', end: '09:00' }, // Wednesday  6:00am – 9:00am
+  5: { start: '06:00', end: '09:00' }, // Friday     6:00am – 9:00am
 };
 
 const toDisplayTime = (h, m) => `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
@@ -651,10 +649,9 @@ const HomePage = ({ setPage }) => {
               <h3 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '26px', color: '#2A1810', margin: '0 0 20px 0', fontWeight: 500 }}>Hours</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {[
-                  { day: 'Tuesday', hours: BUSINESS.hours.tuesday },
-                  { day: 'Thursday', hours: BUSINESS.hours.thursday },
+                  { day: 'Wednesday', hours: BUSINESS.hours.wednesday },
                   { day: 'Friday', hours: BUSINESS.hours.friday },
-                  { day: 'Mon · Wed · Sat · Sun', hours: 'Closed' },
+                  { day: 'Mon · Tue · Thu · Sat · Sun', hours: 'Closed' },
                 ].map(row => (
                   <div key={row.day} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dotted rgba(92, 58, 33, 0.3)', paddingBottom: '8px', gap: '12px' }}>
                     <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', color: '#5C3A21', letterSpacing: '0.05em' }}>{row.day}</span>
