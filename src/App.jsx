@@ -5,6 +5,7 @@ import {
   Coffee, Star, Loader2, Menu as MenuIcon, CreditCard, Lock,
   User, LogOut, Gift, Mail, Trash2, RotateCcw,
   LayoutDashboard, Power, PauseCircle, PlayCircle, CheckCircle2, Package, RefreshCw,
+  TrendingUp, Download,
 } from 'lucide-react';
 import { subscribeToSlots, bookSlot, subscribeToEventDates, bookEvent, saveOrder } from './storage';
 import { sendOrderEmails, sendEventEmails } from './email';
@@ -18,7 +19,7 @@ import {
 } from './loyalty';
 import {
   amIAdmin, getStoreSettings, updateStoreSettings, subscribeToStoreSettings,
-  getOrdersForDate, setOrderFulfilled, subscribeToOrders,
+  getOrdersForDate, setOrderFulfilled, subscribeToOrders, getOrdersInRange,
 } from './admin';
 
 // ═══════════════════════════════════════════════════════
@@ -43,10 +44,10 @@ const MENU = {
     title: 'Matcha',
     note: 'All matchas made with oatmilk — except Verdí',
     items: [
-      { id: 'matcha-verdi', photo: '/drinks/matcha-verdi.jpeg', name: 'Matcha Verdí', desc: 'Pure ceremonial-grade matcha with a kiss of vanilla', priceL: 10.00, priceBucket: 17.00, gradient: 'linear-gradient(180deg, #F5F0DC 0%, #B5C99A 50%, #6B8E4E 100%)' },
-      { id: 'matcha-besitos', photo: '/drinks/matcha-besitos.jpeg', name: 'Matcha Besitos', desc: 'Cookie butter matcha with a Biscoff crumble & soft top', priceL: 10.00, priceBucket: 17.00, gradient: 'linear-gradient(180deg, #E8C896 0%, #B5C99A 40%, #6B8E4E 100%)' },
-      { id: 'matcha-blanqui', photo: '/drinks/matcha-blanqui.jpeg', name: 'Matcha Blanquí', desc: 'Banana matcha — smooth, creamy & lightly sweet', priceL: 10.00, priceBucket: 17.00, gradient: 'linear-gradient(180deg, #FFF8E7 0%, #D4DEAB 50%, #8FA968 100%)' },
-      { id: 'matcha-rosa', photo: '/drinks/matcha-rosa.jpeg', name: 'Matcha Rosa', desc: 'Strawberry matcha — jade matcha over sweet strawberry', priceL: 10.00, priceBucket: 17.00, gradient: 'linear-gradient(180deg, #B5C99A 0%, #B5C99A 45%, #FFE4D6 60%, #C8345A 100%)' },
+      { id: 'matcha-verdi', photo: '/drinks/matcha-verdi.jpeg', name: 'Matcha Verdí', desc: 'Pure ceremonial-grade matcha with a kiss of vanilla', priceL: 10.50, priceBucket: 19.00, gradient: 'linear-gradient(180deg, #F5F0DC 0%, #B5C99A 50%, #6B8E4E 100%)' },
+      { id: 'matcha-besitos', photo: '/drinks/matcha-besitos.jpeg', name: 'Matcha Besitos', desc: 'Cookie butter matcha with a Biscoff crumble & soft top', priceL: 10.50, priceBucket: 19.00, gradient: 'linear-gradient(180deg, #E8C896 0%, #B5C99A 40%, #6B8E4E 100%)' },
+      { id: 'matcha-blanqui', photo: '/drinks/matcha-blanqui.jpeg', name: 'Matcha Blanquí', desc: 'Banana matcha — smooth, creamy & lightly sweet', priceL: 10.50, priceBucket: 19.00, gradient: 'linear-gradient(180deg, #FFF8E7 0%, #D4DEAB 50%, #8FA968 100%)' },
+      { id: 'matcha-rosa', photo: '/drinks/matcha-rosa.jpeg', name: 'Matcha Rosa', desc: 'Strawberry matcha — jade matcha over sweet strawberry', priceL: 10.50, priceBucket: 19.00, gradient: 'linear-gradient(180deg, #B5C99A 0%, #B5C99A 45%, #FFE4D6 60%, #C8345A 100%)' },
     ],
   },
   lattes: {
@@ -159,22 +160,47 @@ const generateTimeSlotsForDate = (iso) => {
   return slots;
 };
 
-// The next open pickup days (Tue/Thu/Fri), looking a few weeks ahead.
-const getUpcomingPickupDays = (limit = 8) => {
+// ── ORDER CUTOFF ───────────────────────────────────────
+// Orders for a pickup day close at 7:00 PM the evening before, so the
+// day's list is final with a full evening left to prep from it.
+//
+// Because pickup is only ever 6–9 AM, this also means same-day ordering
+// is never possible: by the time a pickup day starts, its cutoff passed
+// eleven hours earlier. That's intentional, not a side effect.
+const ORDER_CUTOFF_HOUR = 19;
+
+// The instant ordering closes for a given pickup date.
+const cutoffForDate = (iso) => {
+  const d = parseLocalDate(iso);
+  d.setDate(d.getDate() - 1);
+  d.setHours(ORDER_CUTOFF_HOUR, 0, 0, 0);
+  return d;
+};
+
+const isDateOrderable = (iso, now = new Date()) => now.getTime() < cutoffForDate(iso).getTime();
+
+// A friendly "order by …" line for a pickup date.
+const cutoffLabel = (iso) => {
+  const c = cutoffForDate(iso);
+  return `${c.toLocaleDateString('en-US', { weekday: 'long' })} at ${toDisplayTime(c.getHours(), c.getMinutes())}`;
+};
+
+// The next open pickup days (Wed/Fri), looking a few weeks ahead.
+// Days whose cutoff has passed are excluded — you can't order for them.
+const getUpcomingPickupDays = (limit = 8, now = new Date()) => {
   const days = [];
-  const today = new Date();
-  const todayIso = formatLocalDate(today);
   for (let i = 0; i < 28 && days.length < limit; i++) {
-    const d = new Date(today);
-    d.setDate(today.getDate() + i);
+    const d = new Date(now);
+    d.setDate(now.getDate() + i);
     if (!PICKUP_SCHEDULE[d.getDay()]) continue;
     const iso = formatLocalDate(d);
+    if (!isDateOrderable(iso, now)) continue;
     days.push({
       iso,
       day: d.toLocaleDateString('en-US', { weekday: 'short' }),
       date: d.getDate(),
       month: d.toLocaleDateString('en-US', { month: 'short' }),
-      isToday: iso === todayIso,
+      isToday: false, // same-day ordering can't happen under the cutoff rule
     });
   }
   return days;
@@ -944,7 +970,7 @@ const DrinkCustomizer = ({ drink, onClose, onAdd, user, onSignIn }) => {
 // CHECKOUT FLOW
 // ═══════════════════════════════════════════════════════
 const CheckoutFlow = ({ cart, cartTotal, user, paused, onBack, onComplete }) => {
-  const [selectedDate, setSelectedDate] = useState(getUpcomingPickupDays()[0]?.iso || getNextSevenDays()[0].iso);
+  const [selectedDate, setSelectedDate] = useState(getUpcomingPickupDays()[0]?.iso || '');
   const [selectedTime, setSelectedTime] = useState(null);
   const [bookedSlots, setBookedSlots] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -1001,8 +1027,20 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, onBack, onComplete }) => 
   const effectiveTotal = round2(taxableTotal + taxTotal);
   const isFreeOrder = effectiveTotal <= 0 && (canRedeem && redeemOn);
 
-  const days = useMemo(() => getUpcomingPickupDays(), []);
+  // Recomputed on every `now` tick so a day drops off the moment its 7 PM
+  // cutoff passes, even if the customer has been sitting on this page.
+  const days = useMemo(() => getUpcomingPickupDays(8, now), [now]);
   const allSlots = useMemo(() => generateTimeSlotsForDate(selectedDate), [selectedDate]);
+
+  // If the selected day closes underneath them, move to the next open one.
+  useEffect(() => {
+    if (days.length === 0) return;
+    if (!days.some(d => d.iso === selectedDate)) {
+      setSelectedDate(days[0].iso);
+      setSelectedTime(null);
+      setError('Ordering just closed for that day. We\'ve moved you to the next available pickup.');
+    }
+  }, [days, selectedDate]);
 
   // Tick every 30 seconds so past slots disappear in near-real-time
   useEffect(() => {
@@ -1206,8 +1244,9 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, onBack, onComplete }) => 
   // Free reward order needs no card; otherwise charge the mounted card.
   const handleSubmit = () => handlePayNow(isFreeOrder ? null : cardObj);
 
-  // Checkout is blocked whenever we can't actually take money.
-  const checkoutBlocked = payUnavailable || paused;
+  // Checkout is blocked whenever we can't take money, or there's no open
+  // pickup day left to book (every upcoming day's cutoff has passed).
+  const checkoutBlocked = payUnavailable || paused || days.length === 0;
   const submitDisabled = submitting || checkoutBlocked || (!isFreeOrder && !cardReady);
 
   return (
@@ -1229,6 +1268,11 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, onBack, onComplete }) => 
             <Calendar size={18} color="#2A1810" />
             <h3 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '20px', color: '#2A1810', margin: 0, fontWeight: 500 }}>Pickup Date</h3>
           </div>
+          <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '13px', color: '#5C3A21', margin: '0 0 14px 0' }}>
+            {selectedDate
+              ? `Orders for this day close ${cutoffLabel(selectedDate)}.`
+              : 'Ordering is closed for now — please check back soon.'}
+          </p>
           <div className="h-scroll-fade on-white">
             <div className="h-scroll">
               {days.map(d => (
@@ -1424,6 +1468,16 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, onBack, onComplete }) => 
             <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.2em', textTransform: 'uppercase', color: '#5C3A21' }}>Total</span>
             <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '28px', color: '#2A1810', fontWeight: 600 }}>${effectiveTotal.toFixed(2)}</span>
           </div>
+        </div>
+
+        {/* Order is final once placed — she preps from a closed list the
+            evening before, so there's no window to change it afterwards. */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', background: '#F0E2C9', border: '1px solid rgba(92,58,33,0.15)', borderRadius: '8px', padding: '14px 16px', marginBottom: '16px' }}>
+          <Lock size={15} color="#5C3A21" style={{ flexShrink: 0, marginTop: '2px' }} />
+          <p style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '15px', color: '#3D2817', margin: 0, lineHeight: 1.5 }}>
+            <strong style={{ fontWeight: 600 }}>Please double-check your order.</strong> Once it's placed we can't add
+            to it or change it — everything is prepped ahead from the day's final list.
+          </p>
         </div>
 
         {error && (
@@ -2286,6 +2340,25 @@ const DashboardPage = ({ user, setPage, onReorder, isAdmin }) => {
     catch { return iso; }
   };
 
+  // The customer's own purchase history, summarised.
+  const purchaseStats = useMemo(() => {
+    const spent = orders.reduce((s, o) => s + (Number(o.total) || 0), 0);
+    const saved = orders.reduce((s, o) => s + (Number(o.discount) || 0), 0);
+    const byDrink = {};
+    orders.forEach(o => (o.items || []).forEach(it => {
+      const key = it.name || it.drinkId;
+      if (key) byDrink[key] = (byDrink[key] || 0) + (Number(it.qty) || 0);
+    }));
+    const top = Object.entries(byDrink).sort((a, b) => b[1] - a[1])[0];
+    return {
+      count: orders.length,
+      spent,
+      saved,
+      avg: orders.length ? spent / orders.length : 0,
+      favourite: top ? { name: top[0], qty: top[1] } : null,
+    };
+  }, [orders]);
+
   return (
     <div style={{ background: '#FAF1E4', minHeight: '100vh' }}>
       <div style={{ maxWidth: '760px', margin: '0 auto', padding: '32px 20px 80px 20px' }}>
@@ -2376,6 +2449,28 @@ const DashboardPage = ({ user, setPage, onReorder, isAdmin }) => {
               <h2 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '24px', color: '#2A1810', margin: '0 0 14px 0', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <ShoppingBag size={18} /> Recent Orders
               </h2>
+
+              {/* Their own purchase history at a glance. */}
+              {orders.length > 0 && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(104px, 1fr))', gap: '9px', marginBottom: '12px' }}>
+                  {[
+                    { label: 'Orders', value: purchaseStats.count },
+                    { label: 'Total spent', value: `$${purchaseStats.spent.toFixed(2)}` },
+                    { label: 'Avg order', value: `$${purchaseStats.avg.toFixed(2)}` },
+                    { label: 'Saved in rewards', value: `$${purchaseStats.saved.toFixed(2)}` },
+                  ].map(s => (
+                    <div key={s.label} style={{ background: '#F0E2C9', borderRadius: '10px', padding: '12px 10px', textAlign: 'center' }}>
+                      <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '21px', color: '#2A1810', fontWeight: 600, lineHeight: 1 }}>{s.value}</div>
+                      <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '9px', letterSpacing: '0.14em', textTransform: 'uppercase', color: '#5C3A21', marginTop: '4px' }}>{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {purchaseStats.favourite && (
+                <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '15px', color: '#5C3A21', margin: '0 0 12px 0' }}>
+                  Your usual is the <strong style={{ color: '#2A1810', fontWeight: 600 }}>{purchaseStats.favourite.name}</strong> — ordered {purchaseStats.favourite.qty}×.
+                </p>
+              )}
               {orders.length === 0 ? (
                 <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '15px', color: '#5C3A21', background: '#FFFEFA', border: '1px solid rgba(92,58,33,0.1)', borderRadius: '8px', padding: '20px', margin: 0, textAlign: 'center' }}>
                   No orders yet. Your order history will appear here.
@@ -2439,6 +2534,202 @@ const DashboardPage = ({ user, setPage, onReorder, isAdmin }) => {
           </>
         )}
       </div>
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════
+// SALES ANALYTICS (owner only)
+// ───────────────────────────────────────────────────────────────
+// Everything here is derived from PAID orders only — pending rows are
+// abandoned checkouts and would inflate every figure.
+// ═══════════════════════════════════════════════════════════════
+const RANGES = [
+  { id: 7, label: '7 days' },
+  { id: 30, label: '30 days' },
+  { id: 90, label: '90 days' },
+];
+
+// RFC-4180 escaping: wrap in quotes, double any internal quote. Without
+// this a customer name containing a comma silently shifts every column.
+const csvCell = (v) => {
+  const s = v == null ? '' : String(v);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+
+const SalesAnalytics = () => {
+  const [days, setDays] = useState(30);
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const range = useMemo(() => {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(end.getDate() - (days - 1));
+    return { start: formatLocalDate(start), end: formatLocalDate(end) };
+  }, [days]);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    getOrdersInRange(range.start, range.end).then(rows => {
+      if (alive) { setOrders(rows); setLoading(false); }
+    });
+    return () => { alive = false; };
+  }, [range.start, range.end]);
+
+  const stats = useMemo(() => {
+    const gross = orders.reduce((s, o) => s + (Number(o.total) || 0), 0);
+    const tax = orders.reduce((s, o) => s + (Number(o.tax) || 0), 0);
+    const discounts = orders.reduce((s, o) => s + (Number(o.discount) || 0), 0);
+
+    // Units sold per drink, and revenue by pickup slot.
+    const byDrink = {};
+    const bySlot = {};
+    orders.forEach(o => {
+      (o.items || []).forEach(it => {
+        const key = it.name || it.drinkId || 'Unknown';
+        byDrink[key] = (byDrink[key] || 0) + (Number(it.qty) || 0);
+      });
+      const slot = o.pickup_time_display || o.pickup_time || '—';
+      bySlot[slot] = (bySlot[slot] || 0) + 1;
+    });
+
+    // A customer is identified by account where we have one, else by email.
+    const seen = new Map();
+    orders.forEach(o => {
+      const key = o.user_id || (o.customer?.email || '').toLowerCase();
+      if (!key) return;
+      seen.set(key, (seen.get(key) || 0) + 1);
+    });
+    const repeat = [...seen.values()].filter(n => n > 1).length;
+
+    return {
+      gross,
+      tax,
+      net: gross - tax,
+      discounts,
+      count: orders.length,
+      avg: orders.length ? gross / orders.length : 0,
+      topDrinks: Object.entries(byDrink).sort((a, b) => b[1] - a[1]).slice(0, 5),
+      topSlots: Object.entries(bySlot).sort((a, b) => b[1] - a[1]).slice(0, 5),
+      customers: seen.size,
+      repeat,
+    };
+  }, [orders]);
+
+  const downloadCsv = () => {
+    const header = [
+      'Order ID', 'Pickup date', 'Pickup time', 'Customer', 'Email', 'Phone',
+      'Items', 'Subtotal', 'Discount', 'Tax', 'Total', 'Square payment ID', 'Placed at',
+    ];
+    const rows = orders.map(o => [
+      o.id, o.pickup_date, o.pickup_time_display || o.pickup_time,
+      o.customer?.name, o.customer?.email, o.customer?.phone,
+      (o.items || []).map(i => `${i.qty}x ${i.name} (${i.sizeDisplay || i.size})`).join('; '),
+      Number(o.subtotal ?? 0).toFixed(2),
+      Number(o.discount ?? 0).toFixed(2),
+      Number(o.tax ?? 0).toFixed(2),
+      Number(o.total ?? 0).toFixed(2),
+      o.square_payment_id, o.created_at,
+    ]);
+    const csv = [header, ...rows].map(r => r.map(csvCell).join(',')).join('\r\n');
+    // BOM so Excel opens UTF-8 names (Verdí, Blanquí) correctly.
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `iced-intentions-orders_${range.start}_to_${range.end}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const Money = ({ label, value, accent }) => (
+    <div style={{ background: accent ? '#2A1810' : '#F0E2C9', color: accent ? '#FAF1E4' : '#2A1810', borderRadius: '12px', padding: '14px 16px', textAlign: 'center' }}>
+      <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: 'clamp(20px, 4.5vw, 28px)', fontWeight: 600, lineHeight: 1 }}>{value}</div>
+      <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '9px', letterSpacing: '0.16em', textTransform: 'uppercase', opacity: 0.75, marginTop: '5px' }}>{label}</div>
+    </div>
+  );
+
+  const Bars = ({ title, rows, unit }) => {
+    const max = Math.max(1, ...rows.map(r => r[1]));
+    return (
+      <div>
+        <h3 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '19px', color: '#2A1810', margin: '0 0 12px 0', fontWeight: 600, fontStyle: 'italic' }}>{title}</h3>
+        {rows.length === 0 ? (
+          <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '14px', color: '#5C3A21', margin: 0 }}>No data yet.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '9px' }}>
+            {rows.map(([name, n]) => (
+              <div key={name}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: '"Outfit", sans-serif', fontSize: '12px', color: '#3D2817', marginBottom: '3px' }}>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: '8px' }}>{name}</span>
+                  <span style={{ fontWeight: 600, flexShrink: 0 }}>{n} {unit}</span>
+                </div>
+                <div style={{ height: '7px', background: 'rgba(92,58,33,0.1)', borderRadius: '999px', overflow: 'hidden' }}>
+                  <div style={{ width: `${(n / max) * 100}%`, height: '100%', background: '#E8A4B8', borderRadius: '999px' }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ background: '#FFFEFA', border: '1px solid rgba(92,58,33,0.1)', borderRadius: '16px', padding: '22px', marginBottom: '24px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
+        <h2 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '24px', color: '#2A1810', margin: 0, fontWeight: 500, display: 'flex', alignItems: 'center', gap: '9px' }}>
+          <TrendingUp size={18} /> Sales analytics
+        </h2>
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+          {RANGES.map(r => (
+            <button key={r.id} onClick={() => setDays(r.id)} data-compact
+              style={{ padding: '7px 14px', borderRadius: '999px', border: `1.5px solid ${days === r.id ? '#2A1810' : 'rgba(92,58,33,0.2)'}`, background: days === r.id ? '#2A1810' : 'transparent', color: days === r.id ? '#FAF1E4' : '#5C3A21', fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.08em', cursor: 'pointer' }}>
+              {r.label}
+            </button>
+          ))}
+          <button onClick={downloadCsv} disabled={orders.length === 0} data-compact
+            title={orders.length === 0 ? 'No orders in this range' : 'Download CSV'}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '7px 14px', borderRadius: '999px', border: '1.5px solid rgba(92,58,33,0.2)', background: 'transparent', color: '#5C3A21', fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.08em', cursor: orders.length === 0 ? 'not-allowed' : 'pointer', opacity: orders.length === 0 ? 0.5 : 1 }}>
+            <Download size={13} /> CSV
+          </button>
+        </div>
+      </div>
+
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '30px' }}><Loader2 size={20} className="spin" color="#5C3A21" /></div>
+      ) : (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '9px', marginBottom: '20px' }}>
+            <Money label="Net sales" value={`$${stats.net.toFixed(2)}`} accent />
+            <Money label="Sales tax" value={`$${stats.tax.toFixed(2)}`} />
+            <Money label="Total taken" value={`$${stats.gross.toFixed(2)}`} />
+            <Money label="Orders" value={stats.count} />
+            <Money label="Avg order" value={`$${stats.avg.toFixed(2)}`} />
+          </div>
+
+          <div className="grid-2-md" style={{ gap: '24px', marginBottom: '18px' }}>
+            <Bars title="Best sellers" rows={stats.topDrinks} unit="sold" />
+            <Bars title="Busiest pickup times" rows={stats.topSlots} unit="orders" />
+          </div>
+
+          <div style={{ borderTop: '1px solid rgba(92,58,33,0.1)', paddingTop: '14px', display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
+            <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', color: '#5C3A21' }}>
+              <strong style={{ color: '#2A1810' }}>{stats.customers}</strong> customers
+            </span>
+            <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', color: '#5C3A21' }}>
+              <strong style={{ color: '#2A1810' }}>{stats.repeat}</strong> came back
+            </span>
+            <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', color: '#5C3A21' }}>
+              <strong style={{ color: '#2A1810' }}>${stats.discounts.toFixed(2)}</strong> in rewards redeemed
+            </span>
+          </div>
+        </>
+      )}
     </div>
   );
 };
@@ -2648,6 +2939,8 @@ const OwnerDashboard = ({ user, setPage }) => {
             })}
           </div>
         </div>
+
+        <SalesAnalytics />
 
         {/* ── ORDERS BOARD ── */}
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '14px' }}>

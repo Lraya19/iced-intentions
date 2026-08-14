@@ -42,7 +42,7 @@ export async function getMyOrders(userId, limit = 20) {
   if (!isSupabaseConfigured || !userId) return [];
   const { data, error } = await supabase
     .from('orders')
-    .select('id, pickup_date, pickup_time_display, items, total, payment_status, square_receipt_url, created_at')
+    .select('id, pickup_date, pickup_time_display, items, subtotal, discount, tax, total, payment_status, square_receipt_url, created_at')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(limit);

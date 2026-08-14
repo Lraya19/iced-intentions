@@ -35,10 +35,10 @@ const SQUARE_HOSTS = {
 
 // ── Authoritative price list. Must match MENU in src/App.jsx. ──
 const PRICES: Record<string, { L: number; B: number }> = {
-  "matcha-verdi": { L: 10.00, B: 17.00 },
-  "matcha-besitos": { L: 10.00, B: 17.00 },
-  "matcha-blanqui": { L: 10.00, B: 17.00 },
-  "matcha-rosa": { L: 10.00, B: 17.00 },
+  "matcha-verdi": { L: 10.50, B: 19.00 },
+  "matcha-besitos": { L: 10.50, B: 19.00 },
+  "matcha-blanqui": { L: 10.50, B: 19.00 },
+  "matcha-rosa": { L: 10.50, B: 19.00 },
   "dulce-moonkiss": { L: 8.00, B: 15.00 },
   "mornenita-mornings": { L: 8.00, B: 15.00 },
   "nube-blush": { L: 8.00, B: 15.00 },
@@ -72,6 +72,48 @@ const MAX_LINES = 40;
 const TAX_RATE = 0.0825;
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
+
+// ── Order cutoff ───────────────────────────────────────────────
+// Orders for a pickup day close at 7:00 PM the evening before. Enforced
+// here as well as in the UI — a cutoff that only exists in the browser is
+// not a cutoff. Edge Functions run in UTC, so all comparisons are done
+// against wall-clock time in the shop's own timezone.
+const BUSINESS_TZ = "America/Los_Angeles";
+const ORDER_CUTOFF_HOUR = 19;
+
+function nowInBusinessTz(): { date: string; minutes: number } {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: BUSINESS_TZ,
+      year: "numeric", month: "2-digit", day: "2-digit",
+      hour: "2-digit", minute: "2-digit", hour12: false,
+    }).formatToParts(new Date()).map((p) => [p.type, p.value]),
+  );
+  // Some runtimes render midnight as "24" rather than "00".
+  const hour = Number(parts.hour) % 24;
+  return {
+    date: `${parts.year}-${parts.month}-${parts.day}`,
+    minutes: hour * 60 + Number(parts.minute),
+  };
+}
+
+// The calendar day before an ISO date. Date-only UTC arithmetic, so no
+// daylight-saving drift.
+function previousDay(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() - 1);
+  return dt.toISOString().slice(0, 10);
+}
+
+function isPickupDateOrderable(pickupIso: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(pickupIso)) return false;
+  const cutoffDay = previousDay(pickupIso);
+  const now = nowInBusinessTz();
+  if (now.date < cutoffDay) return true;                                  // more than a day out
+  if (now.date === cutoffDay) return now.minutes < ORDER_CUTOFF_HOUR * 60; // cutoff evening
+  return false;                                                            // cutoff has passed
+}
 
 interface CartItem {
   drinkId: string;
@@ -213,6 +255,14 @@ Deno.serve(async (req: Request) => {
 
     pickupDate = orderRow.pickup_date ?? body.pickupDate ?? null;
     pickupTime = orderRow.pickup_time ?? body.pickupTime ?? null;
+
+    // ── Cutoff: no ordering for a day once 7 PM the evening before passes. ──
+    if (!pickupDate || !isPickupDateOrderable(pickupDate)) {
+      await rollback(orderId, pickupDate, pickupTime);
+      return json({
+        error: "Ordering has closed for that pickup day. Orders must be placed by 7:00 PM the evening before.",
+      }, 400);
+    }
 
     // ── Re-price the cart ourselves. The client's numbers are display-only. ──
     const priced = priceCart(items ?? []);

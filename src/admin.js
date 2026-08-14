@@ -85,6 +85,23 @@ export async function getOrdersForDate(dateStr) {
   return data || [];
 }
 
+// Every PAID order in a pickup-date range, for the analytics panel and
+// the CSV export. Admin-only via the orders_admin_all policy.
+// `startIso`/`endIso` are inclusive YYYY-MM-DD pickup dates.
+export async function getOrdersInRange(startIso, endIso) {
+  if (!isSupabaseConfigured || !startIso || !endIso) return [];
+  const { data, error } = await supabase
+    .from('orders')
+    .select('id, pickup_date, pickup_time, pickup_time_display, customer, items, subtotal, discount, tax, total, payment_status, fulfilled, square_payment_id, user_id, created_at')
+    .gte('pickup_date', startIso)
+    .lte('pickup_date', endIso)
+    .eq('payment_status', 'paid')
+    .order('pickup_date', { ascending: true })
+    .order('pickup_time', { ascending: true });
+  if (error) { console.warn('range read failed:', error.message); return []; }
+  return data || [];
+}
+
 // Mark an order fulfilled / un-fulfilled (admin only; RLS enforced).
 export async function setOrderFulfilled(orderId, fulfilled) {
   if (!isSupabaseConfigured) throw new Error('Not configured');
