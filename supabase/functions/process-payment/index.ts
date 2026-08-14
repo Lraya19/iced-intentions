@@ -65,6 +65,14 @@ const STAMPS_FOR_REWARD = 10;
 const MAX_QTY_PER_LINE = 20;
 const MAX_LINES = 40;
 
+// Bakersfield, CA: 7.25% state + 1.00% district. Charged on the
+// POST-discount amount — a loyalty reward is a retailer-funded discount,
+// which reduces taxable gross receipts, so it reduces the tax too.
+// Must match TAX_RATE in src/App.jsx.
+const TAX_RATE = 0.0825;
+
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
 interface CartItem {
   drinkId: string;
   size: string;
@@ -117,7 +125,7 @@ function priceCart(items: CartItem[]): { total: number; cheapest: number } | nul
   }
 
   return {
-    total: Math.round(total * 100) / 100,
+    total: round2(total),
     cheapest: cheapest === Infinity ? 0 : cheapest,
   };
 }
@@ -236,7 +244,11 @@ Deno.serve(async (req: Request) => {
       redeeming = discount > 0;
     }
 
-    const rawCharge = Math.max(0, Math.round((priced.total - discount) * 100) / 100);
+    // subtotal → less discount → plus tax on what's left = what they pay.
+    const subtotal = priced.total;
+    const taxable = Math.max(0, round2(subtotal - discount));
+    const tax = round2(taxable * TAX_RATE);
+    const rawCharge = round2(taxable + tax);
     const chargeCents = Math.round(rawCharge * 100);
 
     let paymentId: string | null = null;
@@ -297,6 +309,9 @@ Deno.serve(async (req: Request) => {
         payment_status: "paid",
         square_payment_id: paymentId,
         square_receipt_url: receiptUrl,
+        subtotal,
+        discount,
+        tax,
         total: rawCharge,
       })
       .eq("id", orderId);
@@ -325,7 +340,10 @@ Deno.serve(async (req: Request) => {
       receiptUrl,
       status,
       amountCharged: rawCharge,
+      subtotal,
       discountApplied: discount,
+      tax,
+      taxRate: TAX_RATE,
       redeemed: redeeming,
     }, 200);
   } catch (err) {

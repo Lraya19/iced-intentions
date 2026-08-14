@@ -78,7 +78,7 @@ export async function getOrdersForDate(dateStr) {
   if (!isSupabaseConfigured || !dateStr) return [];
   const { data, error } = await supabase
     .from('orders')
-    .select('id, pickup_date, pickup_time, pickup_time_display, customer, items, total, payment_status, fulfilled, square_receipt_url, created_at')
+    .select('id, pickup_date, pickup_time, pickup_time_display, customer, items, subtotal, discount, tax, total, payment_status, fulfilled, square_receipt_url, created_at')
     .eq('pickup_date', dateStr)
     .order('pickup_time', { ascending: true });
   if (error) { console.warn('orders read failed:', error.message); return []; }

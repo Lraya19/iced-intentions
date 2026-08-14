@@ -103,6 +103,16 @@ function orderMessages(order: any, ownerEmail: string): Message[] {
   const paid = order.payment_status === "paid";
   const firstName = String(customer.name || "there").split(" ")[0];
 
+  // Money breakdown, shown on both copies so the customer has a real
+  // receipt and the owner has filing-ready figures.
+  const hasBreakdown = order.tax != null && Number(order.tax) > 0;
+  const breakdown = hasBreakdown
+    ? [
+      `Subtotal: ${money(Number(order.subtotal ?? 0) - Number(order.discount ?? 0))}`,
+      `Sales tax: ${money(order.tax)}`,
+    ]
+    : [];
+
   const msgs: Message[] = [{
     to: ownerEmail,
     replyTo: customer.email || undefined,
@@ -113,6 +123,8 @@ function orderMessages(order: any, ownerEmail: string): Message[] {
       "",
       itemLines,
       "",
+      ...(Number(order.discount) > 0 ? [`Reward discount: -${money(order.discount)}`] : []),
+      ...breakdown,
       `TOTAL ${paid ? "PAID" : "DUE"}: ${money(order.total)}`,
       "",
       `Customer: ${customer.name || "(not provided)"}`,
@@ -138,6 +150,8 @@ function orderMessages(order: any, ownerEmail: string): Message[] {
         "",
         itemLines,
         "",
+        ...(Number(order.discount) > 0 ? [`Free drink reward: -${money(order.discount)}`] : []),
+        ...breakdown,
         `Total paid: ${money(order.total)}`,
         "",
         order.square_receipt_url ? `Your receipt: ${order.square_receipt_url}` : null,

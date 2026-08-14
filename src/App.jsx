@@ -92,6 +92,14 @@ const SIZES = [
   { id: 'BUCKET', label: 'Bucket (32 oz)' },
 ];
 
+// Sales tax — Bakersfield, CA (7.25% state + 1.00% district).
+// Applied to the POST-discount amount: a loyalty reward is a
+// retailer-funded discount, so it reduces taxable gross receipts.
+// These figures are for DISPLAY ONLY — process-payment recomputes the
+// authoritative tax and total server-side. Must match TAX_RATE there.
+const TAX_RATE = 0.0825;
+const round2 = (n) => Math.round(n * 100) / 100;
+
 // Look up a drink by id + a friendly size label (single-size drinks show "32 oz").
 const DRINK_BY_ID = {};
 Object.values(MENU).forEach(c => c.items.forEach(d => { DRINK_BY_ID[d.id] = d; }));
@@ -985,9 +993,12 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, onBack, onComplete }) => 
     return Math.min(...prices);
   }, [cart]);
 
-  // Effective discount + total when redemption is toggled on.
+  // Effective discount, tax and total when redemption is toggled on.
+  // Mirrors process-payment: subtotal → less discount → plus tax on the rest.
   const discount = (canRedeem && redeemOn) ? cheapestDrinkPrice : 0;
-  const effectiveTotal = Math.max(0, cartTotal - discount);
+  const taxableTotal = Math.max(0, round2(cartTotal - discount));
+  const taxTotal = round2(taxableTotal * TAX_RATE);
+  const effectiveTotal = round2(taxableTotal + taxTotal);
   const isFreeOrder = effectiveTotal <= 0 && (canRedeem && redeemOn);
 
   const days = useMemo(() => getUpcomingPickupDays(), []);
@@ -1133,7 +1144,12 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, onBack, onComplete }) => 
         pickupTimeDisplay: allSlots.find(s => s.time === selectedTime)?.display,
         customer: customerInfo,
         items: cart,
-        total: cartTotal, // provisional; the Edge Function overwrites with the charged amount
+        // Provisional figures; the Edge Function recomputes all of these
+        // server-side and overwrites the row with the authoritative values.
+        subtotal: cartTotal,
+        discount,
+        tax: taxTotal,
+        total: effectiveTotal,
         paymentStatus: 'pending',
         squarePaymentId: null,
         squareReceiptUrl: null,
@@ -1156,6 +1172,8 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, onBack, onComplete }) => 
       // 6. Build the final order object for the confirmation screen + emails.
       const order = {
         ...baseOrder,
+        subtotal: result.subtotal != null ? result.subtotal : cartTotal,
+        tax: result.tax != null ? result.tax : taxTotal,
         total: result.amountCharged != null ? result.amountCharged : effectiveTotal,
         discountApplied: result.discountApplied || 0,
         redeemed: Boolean(result.redeemed),
@@ -1387,7 +1405,22 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, onBack, onComplete }) => 
               </div>
             )}
           </div>
-          <div style={{ borderTop: '1px solid rgba(92, 58, 33, 0.2)', marginTop: '14px', paddingTop: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+
+          {/* Subtotal / tax breakdown */}
+          <div style={{ borderTop: '1px solid rgba(92, 58, 33, 0.15)', marginTop: '14px', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '7px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', color: '#5C3A21' }}>Subtotal</span>
+              <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '16px', color: '#2A1810' }}>${taxableTotal.toFixed(2)}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+              <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', color: '#5C3A21' }}>
+                Sales tax ({(TAX_RATE * 100).toFixed(2).replace(/\.?0+$/, '')}%)
+              </span>
+              <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '16px', color: '#2A1810' }}>${taxTotal.toFixed(2)}</span>
+            </div>
+          </div>
+
+          <div style={{ borderTop: '1px solid rgba(92, 58, 33, 0.2)', marginTop: '12px', paddingTop: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
             <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.2em', textTransform: 'uppercase', color: '#5C3A21' }}>Total</span>
             <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '28px', color: '#2A1810', fontWeight: 600 }}>${effectiveTotal.toFixed(2)}</span>
           </div>
@@ -1459,6 +1492,12 @@ const OrderConfirmation = ({ order, onClose }) => (
               <Gift size={13} /> Free drink reward
             </span>
             <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '15px', color: '#A83A56', fontWeight: 600 }}>−${order.discountApplied.toFixed(2)}</span>
+          </div>
+        )}
+        {order.tax > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px' }}>
+            <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', color: '#5C3A21' }}>Sales tax</span>
+            <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '15px', color: '#2A1810' }}>${Number(order.tax).toFixed(2)}</span>
           </div>
         )}
         <div style={{ borderTop: '1px solid rgba(92, 58, 33, 0.2)', marginTop: '14px', paddingTop: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
@@ -1561,10 +1600,13 @@ const CartDrawer = ({ cart, cartTotal, onClose, onRemove, onCheckout, onBrowse }
 
             {/* Footer */}
             <div style={{ flexShrink: 0, borderTop: '1px solid rgba(92,58,33,0.12)', padding: '18px 24px 24px 24px', background: '#F0E2C9' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '4px' }}>
                 <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.2em', textTransform: 'uppercase', color: '#5C3A21' }}>Subtotal</span>
                 <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '30px', color: '#2A1810', fontWeight: 600 }}>${cartTotal.toFixed(2)}</span>
               </div>
+              <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '13px', color: '#5C3A21', margin: '0 0 14px 0' }}>
+                Sales tax calculated at checkout.
+              </p>
               <button onClick={onCheckout}
                 style={{ width: '100%', background: '#2A1810', color: '#FAF1E4', padding: '17px', border: 'none', borderRadius: '999px', fontFamily: '"Outfit", sans-serif', fontSize: '13px', letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
                 Checkout <ChevronRight size={16} />
@@ -2513,6 +2555,10 @@ const OwnerDashboard = ({ user, setPage }) => {
   // ── Stats ──
   const paidOrders = orders.filter(o => o.payment_status === 'paid');
   const revenue = paidOrders.reduce((s, o) => s + (Number(o.total) || 0), 0);
+  // Tax collected is money held on the state's behalf, not takings — keep it
+  // visible and separate from the net so the day's figures are filing-ready.
+  const taxCollected = paidOrders.reduce((s, o) => s + (Number(o.tax) || 0), 0);
+  const netSales = revenue - taxCollected;
   const pendingCount = orders.filter(o => !o.fulfilled).length;
 
   const itemsSummary = (items) => (items || []).map(it => `${it.qty}× ${it.name} (${sizeLabel(it.drinkId, it.size)})`).join(', ');
@@ -2619,11 +2665,13 @@ const OwnerDashboard = ({ user, setPage }) => {
         </div>
 
         {/* Stats */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '18px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '10px', marginBottom: '18px' }}>
           {[
             { label: 'Orders', value: orders.length },
             { label: 'To prep', value: pendingCount },
-            { label: 'Paid revenue', value: `$${revenue.toFixed(2)}` },
+            { label: 'Net sales', value: `$${netSales.toFixed(2)}` },
+            { label: 'Sales tax', value: `$${taxCollected.toFixed(2)}` },
+            { label: 'Total taken', value: `$${revenue.toFixed(2)}` },
           ].map(s => (
             <div key={s.label} style={{ background: '#F0E2C9', borderRadius: '12px', padding: '14px 16px', textAlign: 'center' }}>
               <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: 'clamp(22px, 5vw, 30px)', color: '#2A1810', fontWeight: 600, lineHeight: 1 }}>{s.value}</div>
