@@ -170,7 +170,9 @@ export async function saveOrder(orderId, order) {
     customer: order.customer,
     items: order.items,
     total: order.total,
-    payment_status: order.paymentStatus || 'unpaid',
+    // Orders are always inserted as 'pending'; only the Edge Function
+    // (service role) may promote a row to 'paid' after Square confirms.
+    payment_status: order.paymentStatus || 'pending',
     square_payment_id: order.squarePaymentId || null,
     square_receipt_url: order.squareReceiptUrl || null,
   };

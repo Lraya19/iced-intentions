@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Power, PauseCircle, PlayCircle, CheckCircle2, Package, RefreshCw,
 } from 'lucide-react';
 import { subscribeToSlots, bookSlot, subscribeToEventDates, bookEvent, saveOrder } from './storage';
-import { sendOrderEmail, sendEventEmail } from './email';
+import { sendOrderEmails, sendEventEmails } from './email';
 import {
   isSquareConfigured, initSquarePayments, initApplePay, tokenize, chargePayment,
 } from './square';
@@ -52,8 +52,8 @@ const MENU = {
   lattes: {
     title: 'Lattes',
     items: [
-      { id: 'dulce-moonkiss', photo: '/drinks/mornenita-mornings.jpeg', name: 'Dulce Moon-Kiss', desc: 'Chocolate banana, topped with imported cinnamon from El Salvador', priceL: 8.00, priceBucket: 15.00, gradient: 'linear-gradient(180deg, #F5E6D3 0%, #C8A57A 50%, #6B4423 100%)' },
-      { id: 'mornenita-mornings', photo: '/drinks/dulce-moon-kiss.jpeg', name: 'Mornenita Mornings', desc: 'Cinnamon churro flavor with cinnamon-dusted foam', priceL: 8.00, priceBucket: 15.00, gradient: 'linear-gradient(180deg, #FFF1DC 0%, #E8A85C 40%, #8B5E2C 100%)' },
+      { id: 'dulce-moonkiss', photo: '/drinks/dulce-moon-kiss.jpeg', name: 'Dulce Moon-Kiss', desc: 'Chocolate banana, topped with imported cinnamon from El Salvador', priceL: 8.00, priceBucket: 15.00, gradient: 'linear-gradient(180deg, #F5E6D3 0%, #C8A57A 50%, #6B4423 100%)' },
+      { id: 'mornenita-mornings', photo: '/drinks/mornenita-mornings.jpeg', name: 'Mornenita Mornings', desc: 'Cinnamon churro flavor with cinnamon-dusted foam', priceL: 8.00, priceBucket: 15.00, gradient: 'linear-gradient(180deg, #FFF1DC 0%, #E8A85C 40%, #8B5E2C 100%)' },
       { id: 'nube-blush', photo: '/drinks/nube-blush.jpeg', name: 'Nube Blush', desc: 'Vanilla caramel with a silky vanilla foam', priceL: 8.00, priceBucket: 15.00, gradient: 'linear-gradient(180deg, #FFE4E1 0%, #E8A4B8 50%, #C18298 100%)' },
       { id: 'besitos-brunette', photo: '/drinks/besitos-brunette.jpeg', name: 'Besitos Brunette', desc: 'Cookie butter latte with cookie butter cold foam', priceL: 8.00, priceBucket: 15.00, gradient: 'linear-gradient(180deg, #D4A574 0%, #8B5E2C 50%, #4A2C17 100%)' },
     ],
@@ -949,11 +949,12 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, onBack, onComplete }) => 
   const [now, setNow] = useState(() => new Date());
 
   // ── Payment state ──
-  // payMode: 'now' (Square online) or 'pickup' (pay in person).
+  // Paying on the site is the ONLY way to order. If Square is unconfigured
+  // or its form fails to load we block checkout outright rather than take
+  // an order we have no way to collect payment for.
   const squareOn = isSquareConfigured();
-  const [payMode, setPayMode] = useState(squareOn ? 'now' : 'pickup');
   const [cardReady, setCardReady] = useState(false);
-  const [paymentsObj, setPaymentsObj] = useState(null);
+  const [payUnavailable, setPayUnavailable] = useState(!squareOn);
   const [cardObj, setCardObj] = useState(null);
   const [applePayObj, setApplePayObj] = useState(null);
   const cardMounted = useRef(false);
@@ -975,15 +976,13 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, onBack, onComplete }) => 
 
   const canRedeem = Boolean(user) && loyaltyBalance >= STAMPS_FOR_REWARD;
 
-  // Redemption is online-payment only; clear it if they switch to pay-at-pickup.
-  useEffect(() => {
-    if (payMode !== 'now' && redeemOn) setRedeemOn(false);
-  }, [payMode]); // eslint-disable-line
-
   // The free drink = the cheapest single drink (base price) in the cart.
+  // Guard against a malformed cart item: one missing basePrice would turn
+  // the whole total into NaN.
   const cheapestDrinkPrice = useMemo(() => {
-    if (cart.length === 0) return 0;
-    return Math.min(...cart.map(i => i.basePrice));
+    const prices = cart.map(i => Number(i.basePrice)).filter(p => Number.isFinite(p) && p > 0);
+    if (prices.length === 0) return 0;
+    return Math.min(...prices);
   }, [cart]);
 
   // Effective discount + total when redemption is toggled on.
@@ -1009,31 +1008,47 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, onBack, onComplete }) => 
     return unsubscribe;
   }, [selectedDate]);
 
-  // Initialize the Square card form when "Pay now" is active.
+  // Initialize the Square card form once, on mount. The container below is
+  // always rendered (only ever hidden with display:none for a fully-free
+  // reward order) so the Square iframe is never torn out from under us.
   useEffect(() => {
     let cancelled = false;
-    if (payMode !== 'now' || !squareOn || cardMounted.current) return;
+    let localCard = null;
+    if (!squareOn || cardMounted.current) return;
 
     (async () => {
       try {
         const { payments, card } = await initSquarePayments('si-card-container');
-        if (cancelled) return;
+        if (cancelled) { try { await card.destroy(); } catch { /* noop */ } return; }
         cardMounted.current = true;
-        setPaymentsObj(payments);
+        localCard = card;
         setCardObj(card);
         setCardReady(true);
+        setPayUnavailable(false);
 
-        // Try Apple Pay (only shows on supported Apple devices/browsers)
-        const ap = await initApplePay(payments, cartTotal);
+        // Apple Pay (no-op today — disabled in square.js pending domain
+        // verification). NOTE: when re-enabling, the sheet amount is fixed at
+        // init, so it must be re-created whenever effectiveTotal changes.
+        const ap = await initApplePay(payments, effectiveTotal);
         if (!cancelled && ap) setApplePayObj(ap);
       } catch (err) {
         console.error('Square init failed:', err);
-        if (!cancelled) setError('Card form could not load. You can choose "Pay at pickup" instead.');
+        if (!cancelled) {
+          setPayUnavailable(true);
+          setCardReady(false);
+        }
       }
     })();
 
-    return () => { cancelled = true; };
-  }, [payMode, squareOn, cartTotal]);
+    return () => {
+      cancelled = true;
+      if (localCard) {
+        cardMounted.current = false;
+        try { localCard.destroy(); } catch { /* noop */ }
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [squareOn]);
 
   // A slot is full once it reaches capacity. booked_times stores a count
   // per time (older rows may store a name string — treat that as 1).
@@ -1069,64 +1084,24 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, onBack, onComplete }) => 
     if (!stillValid) setSelectedTime(null);
   }, [visibleSlots, selectedTime, bookedSlots]);
 
-  // Shared validation before any submit path.
+  // Shared validation before submitting.
   const validate = () => {
     setError('');
     if (!selectedTime) { setError('Please choose a pickup time.'); return false; }
     if (!customerInfo.name || !customerInfo.phone) { setError('Name and phone are required.'); return false; }
-    // Email required when paying online (needed for the receipt).
-    if (payMode === 'now') {
-      const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerInfo.email);
-      if (!emailOk) { setError('A valid email is required for your payment receipt.'); return false; }
-    }
+    // Every order is paid on the site, so a real email is always required
+    // for the receipt and confirmation.
+    const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerInfo.email);
+    if (!emailOk) { setError('A valid email is required for your receipt.'); return false; }
     return true;
   };
 
-  // Builds the order object + books the slot + saves + emails.
-  // Optionally tags payment info. Returns the order or throws.
-  const finalizeOrder = async (paymentInfo) => {
-    // Atomic transaction prevents two customers grabbing the same slot
-    await bookSlot(selectedDate, selectedTime, customerInfo.name);
-
-    const orderId = paymentInfo?.orderId || `ord_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-    const order = {
-      id: orderId,
-      placedAt: new Date().toISOString(),
-      userId: user?.id || null,
-      pickupDate: selectedDate,
-      pickupTime: selectedTime,
-      pickupTimeDisplay: allSlots.find(s => s.time === selectedTime)?.display,
-      customer: customerInfo,
-      items: cart,
-      total: cartTotal,
-      paymentStatus: paymentInfo ? 'paid' : 'unpaid',
-      squarePaymentId: paymentInfo?.paymentId || null,
-      squareReceiptUrl: paymentInfo?.receiptUrl || null,
-    };
-
-    await saveOrder(orderId, order);
-    try { await sendOrderEmail(order); } catch (e) { console.warn('Email send failed:', e); }
-    return order;
-  };
-
-  // ── PAY AT PICKUP path ──
-  const handlePayAtPickup = async () => {
-    if (!validate()) return;
-    setSubmitting(true);
-    try {
-      const order = await finalizeOrder(null);
-      setSubmitting(false);
-      onComplete(order);
-    } catch (err) {
-      setSubmitting(false);
-      handleSubmitError(err);
-    }
-  };
-
-  // ── PAY NOW path (card or Apple Pay), and free-redemption orders ──
+  // ── The one and only checkout path: pay by card on the site. ──
+  // A fully-free reward order still runs through here, just without a card.
   const handlePayNow = async (paymentMethod) => {
+    if (paused) { setError('Online ordering is paused right now. Please try again a little later. 🤍'); return; }
+    if (payUnavailable) { setError('Card payments are temporarily unavailable. Please try again shortly.'); return; }
     if (!validate()) return;
-    // A free order (reward covers the whole cart) needs no card.
     if (!isFreeOrder && !paymentMethod) { setError('Payment form is still loading. One moment...'); return; }
 
     setSubmitting(true);
@@ -1142,10 +1117,13 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, onBack, onComplete }) => 
       const orderId = `ord_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
       // 3. Book the slot BEFORE charging (don't charge for a slot that's gone).
+      //    If the charge then fails, process-payment releases the slot and
+      //    clears the pending row server-side, so a declined card doesn't
+      //    silently eat one of the two spots for that time.
       await bookSlot(selectedDate, selectedTime, customerInfo.name);
 
       // 4. Insert the order as 'pending'. The Edge Function flips it to 'paid'
-      //    server-side after charging, and stores the post-discount total.
+      //    server-side after charging, and stores the real charged amount.
       const baseOrder = {
         id: orderId,
         placedAt: new Date().toISOString(),
@@ -1155,27 +1133,27 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, onBack, onComplete }) => 
         pickupTimeDisplay: allSlots.find(s => s.time === selectedTime)?.display,
         customer: customerInfo,
         items: cart,
-        total: cartTotal, // pre-discount; Edge Function records the charged amount
+        total: cartTotal, // provisional; the Edge Function overwrites with the charged amount
         paymentStatus: 'pending',
         squarePaymentId: null,
         squareReceiptUrl: null,
       };
       await saveOrder(orderId, baseOrder);
 
-      // 5. Charge via the Edge Function. We send the FULL total + redeem flag +
-      //    line items; the server verifies eligibility and computes the discount.
+      // 5. Charge via the Edge Function. It re-prices the cart from `items`
+      //    against its own price list — the totals we send are display-only.
       const result = await chargePayment({
         sourceId: token,
-        amount: cartTotal,
         orderId,
-        userId: user?.id || null,
         redeem: (canRedeem && redeemOn),
-        items: cart.map(i => ({ drinkId: i.drinkId, size: i.size, qty: i.qty })),
+        items: cart.map(i => ({ drinkId: i.drinkId, size: i.size, qty: i.qty, addOns: i.addOns || [] })),
         buyerEmail: customerInfo.email,
+        pickupDate: selectedDate,
+        pickupTime: selectedTime,
         note: `Iced Intentions — ${cart.length} item(s), pickup ${selectedDate} ${selectedTime}`,
       });
 
-      // 6. Build the final order object for the confirmation screen + email.
+      // 6. Build the final order object for the confirmation screen + emails.
       const order = {
         ...baseOrder,
         total: result.amountCharged != null ? result.amountCharged : effectiveTotal,
@@ -1185,7 +1163,7 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, onBack, onComplete }) => 
         squarePaymentId: result.paymentId,
         squareReceiptUrl: result.receiptUrl,
       };
-      try { await sendOrderEmail(order); } catch (e) { console.warn('Email send failed:', e); }
+      try { await sendOrderEmails(order); } catch (e) { console.warn('Email send failed:', e); }
 
       setSubmitting(false);
       onComplete(order);
@@ -1207,17 +1185,12 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, onBack, onComplete }) => 
     }
   };
 
-  // Router for the main button.
-  const handleSubmit = () => {
-    if (paused) { setError('Online ordering is paused right now. Please try again a little later. 🤍'); return; }
-    if (payMode === 'now') {
-      // Free reward order needs no card; otherwise use the mounted card.
-      if (isFreeOrder) handlePayNow(null);
-      else handlePayNow(cardObj);
-    } else {
-      handlePayAtPickup();
-    }
-  };
+  // Free reward order needs no card; otherwise charge the mounted card.
+  const handleSubmit = () => handlePayNow(isFreeOrder ? null : cardObj);
+
+  // Checkout is blocked whenever we can't actually take money.
+  const checkoutBlocked = payUnavailable || paused;
+  const submitDisabled = submitting || checkoutBlocked || (!isFreeOrder && !cardReady);
 
   return (
     <div style={{ background: '#FAF1E4', minHeight: '100vh', overflowX: 'hidden', maxWidth: '100%' }}>
@@ -1297,49 +1270,52 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, onBack, onComplete }) => 
           <div style={{ display: 'grid', gap: '14px' }}>
             <CheckoutInput label="Full Name *" value={customerInfo.name} onChange={(v) => setCustomerInfo({ ...customerInfo, name: v })} />
             <CheckoutInput label="Phone *" value={customerInfo.phone} onChange={(v) => setCustomerInfo({ ...customerInfo, phone: v })} placeholder="(972) 555-0100" />
-            <CheckoutInput label={payMode === 'now' ? 'Email *' : 'Email'} value={customerInfo.email} onChange={(v) => setCustomerInfo({ ...customerInfo, email: v })} placeholder={payMode === 'now' ? 'for your receipt' : 'for receipt (optional)'} type="email" />
+            <CheckoutInput label="Email *" value={customerInfo.email} onChange={(v) => setCustomerInfo({ ...customerInfo, email: v })} placeholder="for your receipt" type="email" />
           </div>
         </div>
 
-        {/* ── PAYMENT METHOD ── */}
-        {squareOn && (
-          <div style={{ background: '#FFFEFA', padding: '20px', borderRadius: '4px', marginBottom: '16px', border: '1px solid rgba(92, 58, 33, 0.1)' }}>
-            <h3 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '20px', color: '#2A1810', margin: '0 0 14px 0', fontWeight: 500 }}>Payment</h3>
+        {/* ── PAYMENT ── */}
+        <div style={{ background: '#FFFEFA', padding: '20px', borderRadius: '4px', marginBottom: '16px', border: '1px solid rgba(92, 58, 33, 0.1)' }}>
+          <h3 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '20px', color: '#2A1810', margin: '0 0 14px 0', fontWeight: 500 }}>Payment</h3>
 
-            {/* Pay-mode toggle */}
-            <div style={{ display: 'flex', gap: '10px', marginBottom: payMode === 'now' ? '18px' : '0' }}>
-              <button onClick={() => setPayMode('now')} data-compact
-                style={{ flex: 1, padding: '14px 10px', borderRadius: '4px', border: `1.5px solid ${payMode === 'now' ? '#2A1810' : 'rgba(92, 58, 33, 0.2)'}`, background: payMode === 'now' ? '#2A1810' : '#FFFEFA', color: payMode === 'now' ? '#FAF1E4' : '#2A1810', fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s' }}>
-                <CreditCard size={15} /> Pay Now
-              </button>
-              <button onClick={() => setPayMode('pickup')} data-compact
-                style={{ flex: 1, padding: '14px 10px', borderRadius: '4px', border: `1.5px solid ${payMode === 'pickup' ? '#2A1810' : 'rgba(92, 58, 33, 0.2)'}`, background: payMode === 'pickup' ? '#2A1810' : '#FFFEFA', color: payMode === 'pickup' ? '#FAF1E4' : '#2A1810', fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s' }}>
-                <Coffee size={15} /> Pay at Pickup
-              </button>
-            </div>
-
-            {/* Apple Pay button (only appears on supported Apple devices) */}
-            {payMode === 'now' && applePayObj && (
-              <div style={{ marginBottom: '14px' }}>
-                <button
-                  onClick={() => handlePayNow(applePayObj)}
-                  disabled={submitting}
-                  data-compact
-                  style={{ width: '100%', height: '48px', background: '#000', color: '#fff', border: 'none', borderRadius: '6px', cursor: submitting ? 'wait' : 'pointer', fontFamily: '-apple-system, sans-serif', fontSize: '17px', fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
-                  aria-label="Pay with Apple Pay"
-                >
-                  Pay with  Pay
-                </button>
-                <div style={{ textAlign: 'center', margin: '12px 0', position: 'relative' }}>
-                  <span style={{ background: '#FFFEFA', padding: '0 12px', position: 'relative', zIndex: 1, fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5C3A21' }}>or pay by card</span>
-                  <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: '1px', background: 'rgba(92, 58, 33, 0.15)' }} />
-                </div>
+          {payUnavailable ? (
+            /* Square is unconfigured or its form failed to load. We take no
+               order we can't charge for — checkout is blocked outright. */
+            <div style={{ background: 'rgba(232, 85, 122, 0.08)', border: '1px solid rgba(232, 85, 122, 0.3)', borderRadius: '8px', padding: '18px 20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '9px', marginBottom: '6px' }}>
+                <CreditCard size={17} color="#A83A56" />
+                <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.16em', textTransform: 'uppercase', color: '#A83A56', fontWeight: 600 }}>
+                  Payments temporarily unavailable
+                </span>
               </div>
-            )}
+              <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '16px', color: '#2A1810', margin: 0, lineHeight: 1.5 }}>
+                We can't take card payments right now, so online ordering is paused. Please try again shortly — sorry for the detour. 🤍
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* Apple Pay button (only appears on supported Apple devices) */}
+              {applePayObj && (
+                <div style={{ marginBottom: '14px' }}>
+                  <button
+                    onClick={() => handlePayNow(applePayObj)}
+                    disabled={submitting}
+                    data-compact
+                    style={{ width: '100%', height: '48px', background: '#000', color: '#fff', border: 'none', borderRadius: '6px', cursor: submitting ? 'wait' : 'pointer', fontFamily: '-apple-system, sans-serif', fontSize: '17px', fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                    aria-label="Pay with Apple Pay"
+                  >
+                    Pay with  Pay
+                  </button>
+                  <div style={{ textAlign: 'center', margin: '12px 0', position: 'relative' }}>
+                    <span style={{ background: '#FFFEFA', padding: '0 12px', position: 'relative', zIndex: 1, fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5C3A21' }}>or pay by card</span>
+                    <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: '1px', background: 'rgba(92, 58, 33, 0.15)' }} />
+                  </div>
+                </div>
+              )}
 
-            {/* Square card form stays mounted (just hidden) so toggling the
-                reward on/off never destroys the Square iframe. */}
-            {payMode === 'now' && (
+              {/* The card form is always mounted — only ever hidden with
+                  display:none for a fully-free reward order — so the Square
+                  iframe is never unmounted and re-created empty. */}
               <div style={{ display: isFreeOrder ? 'none' : 'block' }}>
                 <div id="si-card-container" style={{ minHeight: '52px', marginBottom: '10px' }} />
                 {!cardReady && (
@@ -1351,27 +1327,21 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, onBack, onComplete }) => 
                   <Lock size={11} /> Secured by Square · we never see your card number
                 </div>
               </div>
-            )}
 
-            {payMode === 'now' && isFreeOrder && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#F0E2C9', borderRadius: '8px', padding: '14px 16px' }}>
-                <Gift size={20} color="#2A1810" />
-                <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '16px', fontStyle: 'italic', color: '#2A1810' }}>
-                  Your reward covers this order — no payment needed!
-                </span>
-              </div>
-            )}
+              {isFreeOrder && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#F0E2C9', borderRadius: '8px', padding: '14px 16px' }}>
+                  <Gift size={20} color="#2A1810" />
+                  <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '16px', fontStyle: 'italic', color: '#2A1810' }}>
+                    Your reward covers this order — no payment needed!
+                  </span>
+                </div>
+              )}
+            </>
+          )}
+        </div>
 
-            {payMode === 'pickup' && (
-              <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '14px', color: '#5C3A21', margin: '14px 0 0 0' }}>
-                Pay with card or cash when you arrive. Your order will be ready at your pickup time.
-              </p>
-            )}
-          </div>
-        )}
-
-        {/* ── LOYALTY REWARD REDEMPTION (online payment only) ── */}
-        {canRedeem && payMode === 'now' && (
+        {/* ── LOYALTY REWARD REDEMPTION ── */}
+        {canRedeem && !payUnavailable && (
           <div style={{ background: redeemOn ? 'linear-gradient(135deg, #2A1810, #5C3A21)' : '#FFFEFA', padding: '18px 20px', borderRadius: '12px', marginBottom: '16px', border: redeemOn ? 'none' : '1.5px solid #E8A4B8', transition: 'all 0.3s' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
@@ -1429,21 +1399,19 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, onBack, onComplete }) => 
           </div>
         )}
 
-        <button onClick={handleSubmit} disabled={submitting || (payMode === 'now' && !isFreeOrder && !cardReady)}
-          style={{ width: '100%', background: submitting ? '#5C3A21' : '#2A1810', color: '#FAF1E4', padding: '18px', border: 'none', borderRadius: '999px', fontFamily: '"Outfit", sans-serif', fontSize: '13px', letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, cursor: (submitting || (payMode === 'now' && !isFreeOrder && !cardReady)) ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', opacity: (payMode === 'now' && !isFreeOrder && !cardReady) ? 0.6 : 1 }}>
+        <button onClick={handleSubmit} disabled={submitDisabled}
+          style={{ width: '100%', background: submitting ? '#5C3A21' : '#2A1810', color: '#FAF1E4', padding: '18px', border: 'none', borderRadius: '999px', fontFamily: '"Outfit", sans-serif', fontSize: '13px', letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, cursor: submitDisabled ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', opacity: submitDisabled && !submitting ? 0.6 : 1 }}>
           {submitting
-            ? <><Loader2 size={16} className="spin" /> {payMode === 'now' ? 'Processing...' : 'Placing Order...'}</>
-            : payMode === 'now'
-              ? (isFreeOrder
-                  ? <><Gift size={15} /> Place Free Order</>
-                  : <><Lock size={14} /> Pay ${effectiveTotal.toFixed(2)}</>)
-              : <>Place Order <Heart size={14} fill="#E8A4B8" stroke="#E8A4B8" /></>}
+            ? <><Loader2 size={16} className="spin" /> Processing...</>
+            : checkoutBlocked
+              ? <>Ordering unavailable</>
+              : isFreeOrder
+                ? <><Gift size={15} /> Place Free Order</>
+                : <><Lock size={14} /> Pay ${effectiveTotal.toFixed(2)}</>}
         </button>
 
         <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '13px', color: '#5C3A21', textAlign: 'center', marginTop: '14px' }}>
-          {payMode === 'now'
-            ? "You'll get a receipt by email. We'll have your order ready right at your time."
-            : "You'll get a confirmation. We'll have it ready right at your time."}
+          You'll get a receipt by email. We'll have your order ready right at your time.
         </p>
       </div>
     </div>
@@ -1485,15 +1453,36 @@ const OrderConfirmation = ({ order, onClose }) => (
             </div>
           ))}
         </div>
+        {order.discountApplied > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px' }}>
+            <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '15px', color: '#A83A56', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Gift size={13} /> Free drink reward
+            </span>
+            <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '15px', color: '#A83A56', fontWeight: 600 }}>−${order.discountApplied.toFixed(2)}</span>
+          </div>
+        )}
         <div style={{ borderTop: '1px solid rgba(92, 58, 33, 0.2)', marginTop: '14px', paddingTop: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-          <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '13px', letterSpacing: '0.2em', textTransform: 'uppercase', color: '#5C3A21' }}>Total</span>
+          <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '13px', letterSpacing: '0.2em', textTransform: 'uppercase', color: '#5C3A21' }}>
+            {order.paymentStatus === 'paid' ? 'Paid' : 'Total'}
+          </span>
           <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '24px', color: '#2A1810', fontWeight: 600 }}>${order.total.toFixed(2)}</span>
         </div>
       </div>
 
-      <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '14px', color: '#5C3A21', marginBottom: '24px' }}>
-        Pay at pickup. We can't wait to see you.
+      <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '14px', color: '#5C3A21', marginBottom: order.squareReceiptUrl ? '14px' : '24px' }}>
+        {order.redeemed
+          ? "Your reward's been used — enjoy it. We can't wait to see you."
+          : "You're all paid up. We can't wait to see you."}
       </p>
+
+      {order.squareReceiptUrl && (
+        <p style={{ marginBottom: '24px' }}>
+          <a href={order.squareReceiptUrl} target="_blank" rel="noopener noreferrer"
+            style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.14em', textTransform: 'uppercase', color: '#5C3A21', display: 'inline-flex', alignItems: 'center', gap: '7px' }}>
+            <CreditCard size={13} /> View your Square receipt
+          </a>
+        </p>
+      )}
 
       <button onClick={onClose} style={{ background: '#2A1810', color: '#FAF1E4', padding: '14px 32px', border: 'none', borderRadius: '999px', fontFamily: '"Outfit", sans-serif', fontSize: '13px', letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 500, cursor: 'pointer' }}>
         Order Again
@@ -1619,7 +1608,11 @@ const OrderPage = ({ cart, setCart, user, onSignIn }) => {
     const lineTotal = (basePrice + addOnTotal) * qty;
     setCart([...cart, {
       id: `${drink.id}-${Date.now()}`, drinkId: drink.id, name: drink.name,
-      gradient: drink.gradient, photo: drink.photo || null, size, addOns, qty, notes, basePrice, lineTotal,
+      gradient: drink.gradient, photo: drink.photo || null, size,
+      // Carry the human size label so emails and receipts say "32 oz" for
+      // single-size refreshers instead of mislabelling them "Bucket".
+      sizeDisplay: sizeLabel(drink.id, size),
+      addOns, qty, notes, basePrice, lineTotal,
     }]);
     setSelectedDrink(null);
     setCartOpen(true); // slide the cart open so they see the drink was added
@@ -1822,7 +1815,7 @@ const EventsPage = () => {
 
     try {
       await bookEvent(date, booking);
-      try { await sendEventEmail(booking); } catch (e) { console.warn('Email send failed:', e); }
+      try { await sendEventEmails(booking); } catch (e) { console.warn('Email send failed:', e); }
       setSubmitting(false);
       setSubmitted(true);
     } catch (err) {
@@ -2360,7 +2353,7 @@ const DashboardPage = ({ user, setPage, onReorder, isAdmin }) => {
                           {fmtDate(o.created_at)} · pickup {o.pickup_time_display}
                         </span>
                         <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '10px', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, color: o.payment_status === 'paid' ? '#3D7A4F' : '#5C3A21', background: o.payment_status === 'paid' ? 'rgba(61,122,79,0.1)' : 'rgba(92,58,33,0.08)', padding: '3px 8px', borderRadius: '999px' }}>
-                          {o.payment_status === 'paid' ? 'Paid' : o.payment_status === 'pending' ? 'Pending' : 'Pay at pickup'}
+                          {o.payment_status === 'paid' ? 'Paid' : 'Payment pending'}
                         </span>
                       </div>
                     </div>
@@ -2659,8 +2652,11 @@ const OwnerDashboard = ({ user, setPage }) => {
                       <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '18px', fontStyle: 'italic', color: '#5C3A21' }}>
                         {o.customer?.name || 'Guest'}
                       </span>
-                      <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '9px', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, padding: '3px 9px', borderRadius: '999px', background: o.payment_status === 'paid' ? 'rgba(61,122,79,0.15)' : 'rgba(92,58,33,0.1)', color: o.payment_status === 'paid' ? '#3D7A4F' : '#5C3A21' }}>
-                        {o.payment_status === 'paid' ? 'Paid' : 'Pay at pickup'}
+                      {/* Every order is paid on the site, so anything not
+                          'paid' is an abandoned/failed checkout — flag it
+                          loudly so nobody makes a drink for free. */}
+                      <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '9px', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, padding: '3px 9px', borderRadius: '999px', background: o.payment_status === 'paid' ? 'rgba(61,122,79,0.15)' : 'rgba(168,58,86,0.15)', color: o.payment_status === 'paid' ? '#3D7A4F' : '#A83A56' }}>
+                        {o.payment_status === 'paid' ? 'Paid' : 'Unpaid — do not make'}
                       </span>
                     </div>
                     <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '13px', color: '#3D2817', marginTop: '7px', lineHeight: 1.5 }}>
@@ -2771,14 +2767,18 @@ export default function App() {
 
   // Re-order a saved favorite: add it straight to the cart and go to order page.
   const handleReorder = (drink) => {
-    const sizePrice = drink.size === 'L' ? drink.priceL : drink.priceBucket;
+    const basePrice = (drink.size === 'L' ? drink.priceL : drink.priceBucket) || 0;
     const addOnsTotal = (drink.addOnsData || []).reduce((s, a) => s + a.price, 0);
-    const lineTotal = ((sizePrice || 0) + addOnsTotal) * (drink.qty || 1);
+    const lineTotal = (basePrice + addOnsTotal) * (drink.qty || 1);
     const cartItem = {
       ...drink,
       id: `${drink.id}-${Date.now()}`,
       drinkId: drink.drinkId || drink.id,
       qty: drink.qty || 1,
+      // basePrice must be carried on every cart item — the loyalty discount
+      // picks the cheapest one, and a missing value poisons it to NaN.
+      basePrice,
+      sizeDisplay: sizeLabel(drink.drinkId || drink.id, drink.size),
       lineTotal,
     };
     setCart(prev => [...prev, cartItem]);

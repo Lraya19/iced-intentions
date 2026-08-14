@@ -8,6 +8,8 @@
 // and one-time card tokens.
 // ═══════════════════════════════════════════════════════════════
 
+import { supabase } from "./supabase";
+
 // These come from Vite env vars (set in .env and in Vercel).
 const SQUARE_APP_ID = import.meta.env.VITE_SQUARE_APP_ID;
 const SQUARE_LOCATION_ID = import.meta.env.VITE_SQUARE_LOCATION_ID;
@@ -128,16 +130,29 @@ export async function tokenize(paymentMethod) {
 }
 
 // Calls our Supabase Edge Function to charge the tokenized card.
-// Returns { success, paymentId, receiptUrl, status } or throws.
-export async function chargePayment({ sourceId, amount, orderId, userId, redeem, items, buyerEmail, note }) {
+// Returns { success, paymentId, receiptUrl, status, amountCharged, ... } or throws.
+//
+// NOTE: we deliberately do NOT send a price. The Edge Function re-prices the
+// whole cart from `items` against its own price list, so a tampered client
+// can't dictate what it pays. It also derives the loyalty user from the
+// signed-in session's JWT rather than a client-supplied id.
+export async function chargePayment({ sourceId, orderId, redeem, items, buyerEmail, pickupDate, pickupTime, note }) {
+  // Send the user's own access token when signed in, so the server can
+  // trust who they are; fall back to the anon key for guest checkout.
+  let authToken = SUPABASE_ANON_KEY;
+  try {
+    const { data } = await supabase.auth.getSession();
+    if (data?.session?.access_token) authToken = data.session.access_token;
+  } catch { /* not signed in — guest checkout */ }
+
   const res = await fetch(`${SUPABASE_URL}/functions/v1/process-payment`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+      "Authorization": `Bearer ${authToken}`,
       "apikey": SUPABASE_ANON_KEY,
     },
-    body: JSON.stringify({ sourceId, amount, orderId, userId, redeem, items, buyerEmail, note }),
+    body: JSON.stringify({ sourceId, orderId, redeem, items, buyerEmail, pickupDate, pickupTime, note }),
   });
 
   let data;
