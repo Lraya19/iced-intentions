@@ -1658,6 +1658,62 @@ const OrderConfirmation = ({ order, onClose }) => (
 );
 
 // ═══════════════════════════════════════════════════════
+// IN-STORE LANDING  (reached by the printed counter QR, ?instore=1)
+// ───────────────────────────────────────────────────────
+// Scanning used to drop people straight onto the menu, which looks
+// identical to just opening the site — no sign-in, no sign anything had
+// happened, so the stamp (the entire point) was easy to miss. This is the
+// screen the QR actually lands on: explain the offer, get them signed in,
+// then hand them to the in-store menu.
+// ═══════════════════════════════════════════════════════
+const InStoreLanding = ({ user, onSignIn, onContinue }) => (
+  <div style={{ background: '#FAF1E4', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 20px' }}>
+    <div style={{ maxWidth: '420px', width: '100%', textAlign: 'center' }}>
+      <InfinityHeart size={46} color="#2A1810" />
+      <h1 style={{ fontFamily: '"Pinyon Script", cursive', fontSize: 'clamp(46px, 13vw, 66px)', color: '#2A1810', margin: '6px 0 0 0', fontWeight: 400, lineHeight: 1 }}>
+        earn a stamp
+      </h1>
+      <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '19px', color: '#5C3A21', margin: '14px 0 30px 0', lineHeight: 1.5 }}>
+        Sign in, order and pay right here on your phone — every drink brings your free one closer.
+      </p>
+
+      <div style={{ background: 'linear-gradient(135deg, #2A1810, #5C3A21)', borderRadius: '18px', padding: '26px 22px', marginBottom: '18px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', textAlign: 'left', marginBottom: '22px' }}>
+          {[
+            { n: '1', t: 'Sign in', d: 'One code by email — no password.' },
+            { n: '2', t: 'Order & pay', d: 'Pay by card here instead of at the counter.' },
+            { n: '3', t: 'Collect your stamp', d: 'Your 11th drink is on us.' },
+          ].map(s => (
+            <div key={s.n} style={{ display: 'flex', alignItems: 'flex-start', gap: '13px' }}>
+              <span style={{ flexShrink: 0, width: '26px', height: '26px', borderRadius: '50%', background: '#E8A4B8', color: '#2A1810', fontFamily: '"Outfit", sans-serif', fontSize: '12px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {s.n}
+              </span>
+              <span>
+                <span style={{ display: 'block', fontFamily: '"Cormorant Garamond", serif', fontSize: '18px', fontStyle: 'italic', fontWeight: 600, color: '#FAF1E4' }}>{s.t}</span>
+                <span style={{ display: 'block', fontFamily: '"Outfit", sans-serif', fontSize: '12px', color: 'rgba(250,241,228,0.75)', marginTop: '1px' }}>{s.d}</span>
+              </span>
+            </div>
+          ))}
+        </div>
+
+        <button onClick={user ? onContinue : onSignIn}
+          style={{ width: '100%', background: '#E8A4B8', color: '#2A1810', padding: '16px', borderRadius: '999px', border: 'none', fontFamily: '"Outfit", sans-serif', fontSize: '13px', letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '9px' }}>
+          {user ? <>Start my order <ChevronRight size={15} /></> : <><User size={15} /> Sign in / Join</>}
+        </button>
+      </div>
+
+      {/* Never block a sale on account creation — they just forgo the stamp. */}
+      {!user && (
+        <button onClick={onContinue} data-compact
+          style={{ background: 'none', border: 'none', cursor: 'pointer', fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '15px', color: '#5C3A21', textDecoration: 'underline' }}>
+          Continue without an account
+        </button>
+      )}
+    </div>
+  </div>
+);
+
+// ═══════════════════════════════════════════════════════
 // SCAN TO PAY  (reached by ?pay=<orderId>)
 // ───────────────────────────────────────────────────────
 // The barista has already taken the order at the counter and built the
@@ -2080,6 +2136,23 @@ const OrderPage = ({ cart, setCart, user, onSignIn, inStore = false }) => {
             Choose your drink, make it yours, pick your pickup time.
           </p>
         </div>
+
+        {/* In-store banner — makes it obvious this isn't ordinary browsing. */}
+        {inStore && (
+          <div style={{ maxWidth: '720px', margin: '0 auto 22px auto', background: '#2A1810', color: '#FAF1E4', borderRadius: '14px', padding: '15px 20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <Coffee size={19} style={{ flexShrink: 0 }} />
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '18px', fontStyle: 'italic', fontWeight: 600 }}>
+                Ordering at the counter
+              </div>
+              <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11.5px', opacity: 0.8, marginTop: '1px' }}>
+                {user
+                  ? 'No pickup time needed — pay here and your stamp is added automatically.'
+                  : 'No pickup time needed. Sign in before paying if you want the stamp.'}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Paused banner */}
         {paused && (
@@ -3483,7 +3556,7 @@ export default function App() {
     return { pay: q.get('pay'), inStore: q.get('instore') === '1' };
   });
 
-  const [page, setPage] = useState(entry.pay ? 'pay' : (entry.inStore ? 'order' : 'home'));
+  const [page, setPage] = useState(entry.pay ? 'pay' : (entry.inStore ? 'instore' : 'home'));
   const [inStoreMode, setInStoreMode] = useState(entry.inStore);
   const [cart, setCart] = useState([]);
   const [user, setUser] = useState(null);
@@ -3555,12 +3628,25 @@ export default function App() {
     if (user && authOpen) { setAuthOpen(false); }
   }, [user]); // eslint-disable-line
 
+  // Signing in from the counter QR is the last step of that landing screen,
+  // so drop them onto the in-store menu the moment it succeeds.
+  useEffect(() => {
+    if (user && page === 'instore') setPage('order');
+  }, [user, page]);
+
   return (
     <div style={{ background: '#FAF1E4', minHeight: '100vh', overflowX: 'hidden', maxWidth: '100%' }}>
       <Nav page={page} setPage={navigate} cartCount={cartCount} user={user} onAccount={goDashboard} onSignIn={() => setAuthOpen(true)} />
       <div className="fade-in" key={page}>
         {page === 'home' && <HomePage setPage={setPage} onSignIn={() => setAuthOpen(true)} user={user} />}
         {page === 'order' && <OrderPage cart={cart} setCart={setCart} user={user} onSignIn={() => setAuthOpen(true)} inStore={inStoreMode} />}
+        {page === 'instore' && (
+          <InStoreLanding
+            user={user}
+            onSignIn={() => setAuthOpen(true)}
+            onContinue={() => setPage('order')}
+          />
+        )}
         {page === 'pay' && (
           <ScanToPayPage
             orderId={entry.pay}
