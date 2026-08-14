@@ -7,11 +7,11 @@
 // shipped the sending key inside the public JS bundle.)
 //
 // Note what is NOT sent from here: no recipient, no subject, no body. The
-// function loads the order/event row itself and composes from that, which
+// function loads the order row itself and composes from that, which
 // is what stops it being an open relay pointed at our domain. All we pass
 // is which record to send for.
 //
-// Both calls are safe to no-op when Supabase isn't configured, so local
+// The call is safe to no-op when Supabase isn't configured, so local
 // dev works with no setup.
 // ═══════════════════════════════════════════════════════════════
 
@@ -47,6 +47,3 @@ async function trigger(kind, id) {
 
 // Owner ticket + customer confirmation for a placed order.
 export const sendOrderEmails = (order) => trigger('order', order?.id);
-
-// Owner inquiry + customer acknowledgement for an event booking.
-export const sendEventEmails = (booking) => trigger('event', booking?.id);

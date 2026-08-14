@@ -10,12 +10,12 @@
 //      secrets and never leaves the server.
 //
 // ── NOT AN OPEN RELAY ──────────────────────────────────────────
-// This function is callable without a login, because guests place orders
-// and submit event enquiries. It is therefore VERY deliberate about what
+// This function is callable without a login, because guests place orders.
+// It is therefore VERY deliberate about what
 // it accepts: only { kind, id }. It will not take a recipient, a subject,
 // or a body from the caller. It loads the row itself and composes the mail
 // from that, so the only address it can ever send to is the one already
-// stored on a real order/event — plus the owner.
+// stored on a real order — plus the owner.
 //
 // `confirmation_sent_at` then makes it single-shot, so a replayed id can't
 // be used to flood a customer on our sending reputation.
@@ -163,52 +163,6 @@ function orderMessages(order: any, ownerEmail: string): Message[] {
   return msgs;
 }
 
-function eventMessages(ev: any, ownerEmail: string): Message[] {
-  const firstName = String(ev.customer_name || "there").split(" ")[0];
-
-  const msgs: Message[] = [{
-    to: ownerEmail,
-    replyTo: ev.customer_email || undefined,
-    subject: `Event inquiry · ${ev.event_type} · ${ev.date}`,
-    heading: "New event inquiry",
-    body: [
-      `TYPE:     ${ev.event_type}`,
-      `DATE:     ${ev.date} at ${ev.start_time}`,
-      `DURATION: ${ev.duration} hrs`,
-      `GUESTS:   ${ev.guests || "(not provided)"}`,
-      "",
-      `Name:  ${ev.customer_name}`,
-      `Email: ${ev.customer_email}`,
-      `Phone: ${ev.customer_phone}`,
-      "",
-      `Notes: ${ev.notes || "(none)"}`,
-      "",
-      `Reference: ${ev.booking_id}`,
-    ].join("\n"),
-    footer: "Reply within 24 hours — that's what the site promises them.",
-  }];
-
-  if (ev.customer_email) {
-    msgs.push({
-      to: ev.customer_email,
-      subject: "We got your Iced Intentions event inquiry ✨",
-      heading: `Thank you, ${firstName}!`,
-      body: [
-        "We've received your inquiry and we'll be in touch within 24 hours.",
-        "",
-        `TYPE:   ${ev.event_type}`,
-        `DATE:   ${ev.date} at ${ev.start_time}`,
-        `GUESTS: ${ev.guests || "to be confirmed"}`,
-        "",
-        "We've pencilled your date in while we talk it through.",
-      ].join("\n"),
-      footer: "Can't wait to hear more about your day. 🤍",
-    });
-  }
-
-  return msgs;
-}
-
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -228,13 +182,14 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Email is not configured." }, 500);
     }
 
+    // Orders are the only thing we email about; event enquiries were removed.
     const { kind, id } = await req.json() as { kind?: string; id?: string };
-    if (!id || typeof id !== "string" || (kind !== "order" && kind !== "event")) {
+    if (!id || typeof id !== "string" || kind !== "order") {
       return json({ error: "Bad request." }, 400);
     }
 
-    const table = kind === "order" ? "orders" : "events";
-    const idColumn = kind === "order" ? "id" : "booking_id";
+    const table = "orders";
+    const idColumn = "id";
 
     const { data: row, error: readErr } = await supabase
       .from(table)
@@ -273,9 +228,7 @@ Deno.serve(async (req: Request) => {
       return json({ ok: true, alreadySent: true }, 200);
     }
 
-    const messages = kind === "order"
-      ? orderMessages(row, OWNER_EMAIL)
-      : eventMessages(row, OWNER_EMAIL);
+    const messages = orderMessages(row, OWNER_EMAIL);
 
     // One failure must not suppress the others — the owner's ticket matters
     // even if the customer's address bounces.

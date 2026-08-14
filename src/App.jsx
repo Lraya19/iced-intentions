@@ -7,8 +7,8 @@ import {
   LayoutDashboard, Power, PauseCircle, PlayCircle, CheckCircle2, Package, RefreshCw,
   TrendingUp, Download,
 } from 'lucide-react';
-import { subscribeToSlots, bookSlot, subscribeToEventDates, bookEvent, saveOrder } from './storage';
-import { sendOrderEmails, sendEventEmails } from './email';
+import { subscribeToSlots, bookSlot, saveOrder } from './storage';
+import { sendOrderEmails } from './email';
 import {
   isSquareConfigured, initSquarePayments, initApplePay, tokenize, chargePayment,
 } from './square';
@@ -318,7 +318,6 @@ const Nav = ({ page, setPage, cartCount, user, onAccount, onSignIn }) => {
   const navItems = [
     { id: 'home', label: 'Home' },
     { id: 'order', label: 'Order' },
-    { id: 'events', label: 'Events' },
   ];
 
   return (
@@ -511,9 +510,6 @@ const HomePage = ({ setPage, onSignIn, user }) => {
                 onMouseEnter={(e) => { e.currentTarget.style.background = '#5C3A21'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = '#2A1810'; }}>
                 Order Online <ChevronRight size={14} />
-              </button>
-              <button onClick={() => setPage('events')} style={{ background: 'transparent', color: '#2A1810', padding: '14px 28px', borderRadius: '999px', border: '1.5px solid #2A1810', fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, cursor: 'pointer' }}>
-                Book an Event
               </button>
             </div>
             <div style={{ display: 'flex', gap: '24px', marginTop: '36px', flexWrap: 'wrap' }}>
@@ -1862,196 +1858,6 @@ const OrderPage = ({ cart, setCart, user, onSignIn }) => {
     </div>
   );
 };
-
-// ═══════════════════════════════════════════════════════
-// EVENTS PAGE
-// ═══════════════════════════════════════════════════════
-const EventsPage = () => {
-  const [eventType, setEventType] = useState('private');
-  const [date, setDate] = useState('');
-  const [time, setTime] = useState('');
-  const [duration, setDuration] = useState('2');
-  const [guests, setGuests] = useState('');
-  const [info, setInfo] = useState({ name: '', email: '', phone: '', notes: '' });
-  const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
-  const [error, setError] = useState('');
-  const [bookedDates, setBookedDates] = useState({});
-
-  const eventTypes = [
-    { id: 'private', label: 'Private Party', icon: Heart, desc: 'Birthdays, baby showers, Galentine\'s, anything sweet', from: 250 },
-    { id: 'wedding', label: 'Wedding', icon: Sparkles, desc: 'Custom drink menu, your monogram, soft top forever', from: 600 },
-    { id: 'corporate', label: 'Corporate', icon: Coffee, desc: 'Office mornings, conferences, client appreciation', from: 350 },
-    { id: 'pop-up', label: 'Pop-Up Booth', icon: Star, desc: 'Markets, festivals, brand activations', from: 450 },
-  ];
-
-  // Subscribe to booked event dates in real-time
-  useEffect(() => {
-    const unsubscribe = subscribeToEventDates((dates) => setBookedDates(dates));
-    return unsubscribe;
-  }, []);
-
-  const handleSubmit = async () => {
-    setError('');
-    if (!date || !time || !info.name || !info.email || !info.phone) {
-      setError('Please fill in all required fields.');
-      return;
-    }
-    if (bookedDates[date]) {
-      setError('That date is already booked. Please pick another.');
-      return;
-    }
-
-    setSubmitting(true);
-    const booking = {
-      id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      submittedAt: new Date().toISOString(),
-      eventType, date, time, duration, guests, ...info, booked: true,
-    };
-
-    try {
-      await bookEvent(date, booking);
-      try { await sendEventEmails(booking); } catch (e) { console.warn('Email send failed:', e); }
-      setSubmitting(false);
-      setSubmitted(true);
-    } catch (err) {
-      setSubmitting(false);
-      if (err.message === 'DATE_TAKEN') {
-        setError('That date was just booked. Please pick another.');
-      } else {
-        setError('Something went wrong. Please try again.');
-        console.error(err);
-      }
-    }
-  };
-
-  if (submitted) {
-    return (
-      <div style={{ background: '#FAF1E4', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 24px' }}>
-        <div style={{ textAlign: 'center', maxWidth: '500px' }}>
-          <div style={{ display: 'inline-flex', width: '80px', height: '80px', borderRadius: '50%', background: '#E8A4B8', alignItems: 'center', justifyContent: 'center', marginBottom: '24px' }}>
-            <Sparkles size={36} color="#FFFEFA" />
-          </div>
-          <h1 style={{ fontFamily: '"Pinyon Script", cursive', fontSize: 'clamp(56px, 7vw, 80px)', color: '#2A1810', margin: '0 0 16px 0', fontWeight: 400, lineHeight: 1 }}>
-            inquiry sent
-          </h1>
-          <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '20px', color: '#5C3A21', marginBottom: '32px' }}>
-            We'll be in touch within 24 hours to make your event unforgettable.
-          </p>
-          <button onClick={() => { setSubmitted(false); setDate(''); setTime(''); setGuests(''); setInfo({ name: '', email: '', phone: '', notes: '' }); }}
-            style={{ background: '#2A1810', color: '#FAF1E4', padding: '14px 32px', border: 'none', borderRadius: '999px', fontFamily: '"Outfit", sans-serif', fontSize: '13px', letterSpacing: '0.18em', textTransform: 'uppercase', fontWeight: 500, cursor: 'pointer' }}>
-            New Inquiry
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ background: '#FAF1E4', minHeight: '100vh', overflowX: 'hidden', maxWidth: '100%' }}>
-      <section style={{ padding: '40px 20px 32px 20px', textAlign: 'center', background: 'radial-gradient(ellipse at center, rgba(232, 164, 184, 0.12), transparent 70%)' }}>
-        <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-          <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.3em', textTransform: 'uppercase', color: '#5C3A21' }}>Events & Catering</span>
-          <h1 style={{ fontFamily: '"Pinyon Script", cursive', fontSize: 'clamp(38px, 11vw, 112px)', color: '#2A1810', margin: '8px 0 0 0', fontWeight: 400, lineHeight: 0.95 }}>
-            Bring us to your<br />special day
-          </h1>
-          <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: 'clamp(15px, 3.8vw, 22px)', color: '#5C3A21', maxWidth: '580px', margin: '16px auto 0 auto', lineHeight: 1.5 }}>
-            Custom drink bars, monogrammed cups, and that signature soft top.
-          </p>
-        </div>
-      </section>
-
-      <div style={{ maxWidth: '900px', margin: '0 auto', padding: '0 20px 60px 20px' }}>
-        <div className="grid-2-sm" style={{ marginBottom: '20px' }}>
-          {eventTypes.map(et => {
-            const Icon = et.icon;
-            const selected = eventType === et.id;
-            return (
-              <button key={et.id} onClick={() => setEventType(et.id)}
-                style={{ background: selected ? '#2A1810' : '#FFFEFA', color: selected ? '#FAF1E4' : '#2A1810', border: `1.5px solid ${selected ? '#2A1810' : 'rgba(92, 58, 33, 0.12)'}`, borderRadius: '6px', padding: '14px', textAlign: 'left', cursor: 'pointer', display: 'flex', gap: '12px', alignItems: 'center', transition: 'all 0.3s' }}>
-                <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: selected ? '#E8A4B8' : '#F0E2C9', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <Icon size={16} color={selected ? '#FFFEFA' : '#2A1810'} />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '6px', flexWrap: 'wrap' }}>
-                    <h3 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '17px', margin: 0, fontWeight: 500, fontStyle: 'italic' }}>{et.label}</h3>
-                    <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '10px', opacity: 0.8, whiteSpace: 'nowrap', letterSpacing: '0.05em' }}>from ${et.from}</span>
-                  </div>
-                  <p style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', margin: '2px 0 0 0', lineHeight: 1.4, opacity: 0.85 }}>{et.desc}</p>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-
-        <div style={{ background: '#FFFEFA', padding: '20px 16px', borderRadius: '6px', border: '1px solid rgba(92, 58, 33, 0.1)', width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
-          <h2 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '22px', color: '#2A1810', margin: '0 0 16px 0', fontWeight: 500 }}>Tell us about your event</h2>
-
-          <div style={{ marginBottom: '12px' }}>
-            <CheckoutInput label="Event Date *" value={date} onChange={setDate} type="date" />
-          </div>
-          <div style={{ marginBottom: '12px' }}>
-            <CheckoutInput label="Start Time *" value={time} onChange={setTime} type="time" />
-          </div>
-          <div className="grid-2-form" style={{ marginBottom: '12px' }}>
-            <CheckoutInput label="Duration (hrs)" value={duration} onChange={setDuration} placeholder="2" />
-            <CheckoutInput label="Est. Guests" value={guests} onChange={setGuests} placeholder="50" />
-          </div>
-
-          {date && bookedDates[date] && (
-            <div style={{ background: 'rgba(232, 85, 122, 0.1)', border: '1px solid rgba(232, 85, 122, 0.3)', padding: '10px 12px', borderRadius: '4px', marginBottom: '12px', fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '13px', color: '#A83A56' }}>
-              That date is already booked. Please choose another.
-            </div>
-          )}
-
-          <div className="grid-2-form" style={{ marginBottom: '12px' }}>
-            <CheckoutInput label="Your Name *" value={info.name} onChange={(v) => setInfo({ ...info, name: v })} />
-            <CheckoutInput label="Phone *" value={info.phone} onChange={(v) => setInfo({ ...info, phone: v })} />
-          </div>
-
-          <div style={{ marginBottom: '12px' }}>
-            <CheckoutInput label="Email *" value={info.email} onChange={(v) => setInfo({ ...info, email: v })} type="email" />
-          </div>
-
-          <div style={{ marginBottom: '16px' }}>
-            <label style={{ fontFamily: '"Outfit", sans-serif', fontSize: '10px', letterSpacing: '0.18em', textTransform: 'uppercase', color: '#5C3A21', display: 'block', marginBottom: '4px' }}>Event Details</label>
-            <textarea value={info.notes} onChange={(e) => setInfo({ ...info, notes: e.target.value })}
-              placeholder="Themes, custom flavors, monogram requests..." rows={3}
-              style={{ width: '100%', padding: '10px 12px', borderRadius: '4px', border: '1.5px solid rgba(92, 58, 33, 0.2)', background: '#FAF1E4', fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '15px', color: '#2A1810', outline: 'none', resize: 'vertical', boxSizing: 'border-box' }} />
-          </div>
-
-          {error && (
-            <div style={{ background: 'rgba(232, 85, 122, 0.1)', border: '1px solid rgba(232, 85, 122, 0.3)', padding: '10px 12px', borderRadius: '4px', marginBottom: '12px', fontFamily: '"Outfit", sans-serif', fontSize: '13px', color: '#A83A56' }}>
-              {error}
-            </div>
-          )}
-
-          <button onClick={handleSubmit} disabled={submitting}
-            style={{ width: '100%', background: submitting ? '#5C3A21' : '#2A1810', color: '#FAF1E4', padding: '14px', border: 'none', borderRadius: '999px', fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, cursor: submitting ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
-            {submitting ? <><Loader2 size={16} className="spin" /> Sending...</> : <>Submit Inquiry <Sparkles size={14} /></>}
-          </button>
-        </div>
-
-        <div className="grid-3-md" style={{ marginTop: '40px' }}>
-          {[
-            { title: 'Custom Drink Menu', desc: 'We curate a signature menu around your theme, dietary needs, and color palette.' },
-            { title: 'Monogrammed Cups', desc: 'Your initials, names, or hashtag printed on each soft-top cup. A keepsake guests adore.' },
-            { title: 'On-Site Service', desc: 'Two artisans, all equipment, setup, and cleanup. You don\'t lift a finger.' },
-          ].map(f => (
-            <div key={f.title}>
-              <h4 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '19px', color: '#2A1810', margin: '0 0 6px 0', fontWeight: 500, fontStyle: 'italic' }}>{f.title}</h4>
-              <p style={{ fontFamily: '"Outfit", sans-serif', fontSize: '13px', color: '#5C3A21', lineHeight: 1.6, margin: 0 }}>{f.desc}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ═══════════════════════════════════════════════════════
-// FOOTER
-// ═══════════════════════════════════════════════════════
 // ═══════════════════════════════════════════════════════
 // AUTH MODAL (magic link sign in / join)
 // ═══════════════════════════════════════════════════════
@@ -3056,7 +2862,7 @@ const Footer = ({ setPage }) => (
         <div>
           <h5 style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.25em', textTransform: 'uppercase', margin: '0 0 12px 0', opacity: 0.7 }}>Explore</h5>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {[{ id: 'home', label: 'Home' }, { id: 'order', label: 'Order Online' }, { id: 'events', label: 'Events' }].map(l => (
+            {[{ id: 'home', label: 'Home' }, { id: 'order', label: 'Order Online' }].map(l => (
               <button key={l.id} onClick={() => setPage(l.id)} data-compact
                 style={{ background: 'none', border: 'none', color: '#F0E2C9', fontFamily: '"Cormorant Garamond", serif', fontSize: '15px', textAlign: 'left', cursor: 'pointer', padding: 0 }}>
                 {l.label}
@@ -3143,7 +2949,6 @@ export default function App() {
       <div className="fade-in" key={page}>
         {page === 'home' && <HomePage setPage={setPage} onSignIn={() => setAuthOpen(true)} user={user} />}
         {page === 'order' && <OrderPage cart={cart} setCart={setCart} user={user} onSignIn={() => setAuthOpen(true)} />}
-        {page === 'events' && <EventsPage />}
         {page === 'dashboard' && user && <DashboardPage user={user} setPage={setPage} onReorder={handleReorder} isAdmin={isAdmin} />}
         {page === 'dashboard' && !user && <HomePage setPage={setPage} onSignIn={() => setAuthOpen(true)} user={user} />}
         {page === 'owner' && <OwnerDashboard user={user} setPage={setPage} />}
