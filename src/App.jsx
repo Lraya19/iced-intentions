@@ -1722,6 +1722,16 @@ const InStoreLanding = ({ user, onSignIn, onContinue }) => (
 // be changed here — process-payment prices it from the row the barista
 // saved, not from anything this page sends.
 // ═══════════════════════════════════════════════════════
+// Defined at module scope on purpose. As a nested component it would be a
+// NEW component type on every render, so React would unmount and rebuild
+// this whole subtree each time — taking Square's card iframe with it and
+// leaving the card entry blank.
+const PayShell = ({ children }) => (
+  <div style={{ background: '#FAF1E4', minHeight: '100vh', padding: '32px 20px 60px 20px' }}>
+    <div style={{ maxWidth: '480px', margin: '0 auto' }}>{children}</div>
+  </div>
+);
+
 const ScanToPayPage = ({ orderId, user, onSignIn, onDone }) => {
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -1817,20 +1827,14 @@ const ScanToPayPage = ({ orderId, user, onSignIn, onDone }) => {
     }
   };
 
-  const Shell = ({ children }) => (
-    <div style={{ background: '#FAF1E4', minHeight: '100vh', padding: '32px 20px 60px 20px' }}>
-      <div style={{ maxWidth: '480px', margin: '0 auto' }}>{children}</div>
-    </div>
-  );
-
   if (loading) {
-    return <Shell><div style={{ textAlign: 'center', padding: '60px' }}><Loader2 size={26} className="spin" color="#5C3A21" /></div></Shell>;
+    return <PayShell><div style={{ textAlign: 'center', padding: '60px' }}><Loader2 size={26} className="spin" color="#5C3A21" /></div></PayShell>;
   }
 
   // Covers a mistyped link, an expired charge, and one that's already paid.
   if (!order) {
     return (
-      <Shell>
+      <PayShell>
         <div style={{ textAlign: 'center', padding: '40px 0' }}>
           <Coffee size={30} color="#5C3A21" />
           <h1 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '26px', color: '#2A1810', margin: '16px 0 8px 0', fontWeight: 500 }}>
@@ -1843,13 +1847,13 @@ const ScanToPayPage = ({ orderId, user, onSignIn, onDone }) => {
             Go to the menu
           </button>
         </div>
-      </Shell>
+      </PayShell>
     );
   }
 
   if (receipt) {
     return (
-      <Shell>
+      <PayShell>
         <div style={{ textAlign: 'center', padding: '30px 0' }}>
           <div style={{ display: 'inline-flex', width: '74px', height: '74px', borderRadius: '50%', background: '#E8A4B8', alignItems: 'center', justifyContent: 'center', marginBottom: '18px' }}>
             <Check size={34} color="#FFFEFA" />
@@ -1872,12 +1876,12 @@ const ScanToPayPage = ({ orderId, user, onSignIn, onDone }) => {
             View my card
           </button>
         </div>
-      </Shell>
+      </PayShell>
     );
   }
 
   return (
-    <Shell>
+    <PayShell>
       <div style={{ textAlign: 'center', marginBottom: '22px' }}>
         <InfinityHeart size={34} color="#2A1810" />
         <h1 style={{ fontFamily: '"Pinyon Script", cursive', fontSize: '44px', color: '#2A1810', margin: '4px 0 0 0', fontWeight: 400, lineHeight: 1 }}>
@@ -1981,7 +1985,7 @@ const ScanToPayPage = ({ orderId, user, onSignIn, onDone }) => {
           </button>
         </>
       )}
-    </Shell>
+    </PayShell>
   );
 };
 
@@ -3022,6 +3026,41 @@ const csvCell = (v) => {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 
+// Module scope for the same reason as PayShell above.
+const Money = ({ label, value, accent }) => (
+  <div style={{ background: accent ? '#2A1810' : '#F0E2C9', color: accent ? '#FAF1E4' : '#2A1810', borderRadius: '12px', padding: '14px 16px', textAlign: 'center' }}>
+    <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: 'clamp(20px, 4.5vw, 28px)', fontWeight: 600, lineHeight: 1 }}>{value}</div>
+    <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '9px', letterSpacing: '0.16em', textTransform: 'uppercase', opacity: 0.75, marginTop: '5px' }}>{label}</div>
+  </div>
+);
+
+const Bars = ({ title, rows, unit }) => {
+  const max = Math.max(1, ...rows.map(r => r[1]));
+  return (
+    <div>
+      <h3 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '19px', color: '#2A1810', margin: '0 0 12px 0', fontWeight: 600, fontStyle: 'italic' }}>{title}</h3>
+      {rows.length === 0 ? (
+        <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '14px', color: '#5C3A21', margin: 0 }}>No data yet.</p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '9px' }}>
+          {rows.map(([name, n]) => (
+            <div key={name}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: '"Outfit", sans-serif', fontSize: '12px', color: '#3D2817', marginBottom: '3px' }}>
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: '8px' }}>{name}</span>
+                <span style={{ fontWeight: 600, flexShrink: 0 }}>{n} {unit}</span>
+              </div>
+              <div style={{ height: '7px', background: 'rgba(92,58,33,0.1)', borderRadius: '999px', overflow: 'hidden' }}>
+                <div style={{ width: `${(n / max) * 100}%`, height: '100%', background: '#E8A4B8', borderRadius: '999px' }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+
 const SalesAnalytics = () => {
   const [days, setDays] = useState(30);
   const [orders, setOrders] = useState([]);
@@ -3109,39 +3148,6 @@ const SalesAnalytics = () => {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  };
-
-  const Money = ({ label, value, accent }) => (
-    <div style={{ background: accent ? '#2A1810' : '#F0E2C9', color: accent ? '#FAF1E4' : '#2A1810', borderRadius: '12px', padding: '14px 16px', textAlign: 'center' }}>
-      <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: 'clamp(20px, 4.5vw, 28px)', fontWeight: 600, lineHeight: 1 }}>{value}</div>
-      <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '9px', letterSpacing: '0.16em', textTransform: 'uppercase', opacity: 0.75, marginTop: '5px' }}>{label}</div>
-    </div>
-  );
-
-  const Bars = ({ title, rows, unit }) => {
-    const max = Math.max(1, ...rows.map(r => r[1]));
-    return (
-      <div>
-        <h3 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '19px', color: '#2A1810', margin: '0 0 12px 0', fontWeight: 600, fontStyle: 'italic' }}>{title}</h3>
-        {rows.length === 0 ? (
-          <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '14px', color: '#5C3A21', margin: 0 }}>No data yet.</p>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '9px' }}>
-            {rows.map(([name, n]) => (
-              <div key={name}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: '"Outfit", sans-serif', fontSize: '12px', color: '#3D2817', marginBottom: '3px' }}>
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: '8px' }}>{name}</span>
-                  <span style={{ fontWeight: 600, flexShrink: 0 }}>{n} {unit}</span>
-                </div>
-                <div style={{ height: '7px', background: 'rgba(92,58,33,0.1)', borderRadius: '999px', overflow: 'hidden' }}>
-                  <div style={{ width: `${(n / max) * 100}%`, height: '100%', background: '#E8A4B8', borderRadius: '999px' }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    );
   };
 
   return (

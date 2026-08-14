@@ -58,6 +58,14 @@ function loadSquareSdk() {
 // a container element id. Returns { payments, card, attachApplePay }.
 export async function initSquarePayments(cardContainerId) {
   const Square = await loadSquareSdk();
+
+  // Attaching to a container that isn't in the DOM yet fails silently and
+  // leaves the customer staring at an empty box with an enabled pay button.
+  // Fail loudly instead so the caller can show a real error.
+  if (!document.getElementById(cardContainerId)) {
+    throw new Error(`Card container #${cardContainerId} is not in the DOM.`);
+  }
+
   const payments = Square.payments(SQUARE_APP_ID, SQUARE_LOCATION_ID);
 
   // Card form, styled to match the brand.
