@@ -186,6 +186,8 @@ Deno.serve(async (req: Request) => {
   const supabase = createClient(supabaseUrl, serviceKey);
 
   // Undo a failed attempt: hand the pickup slot back and bin the pending row.
+  // `date`/`time` are null for in-store charges, which reserve no slot —
+  // the pending row is still cleaned up.
   async function rollback(orderId: string, date?: string | null, time?: string | null) {
     try {
       if (date && time) {
@@ -234,7 +236,7 @@ Deno.serve(async (req: Request) => {
     // ── The order must exist, be ours, and still be unpaid. ──
     const { data: orderRow, error: orderErr } = await supabase
       .from("orders")
-      .select("id, payment_status, pickup_date, pickup_time, user_id")
+      .select("id, payment_status, pickup_date, pickup_time, user_id, order_type, items")
       .eq("id", orderId)
       .maybeSingle();
 
@@ -249,15 +251,23 @@ Deno.serve(async (req: Request) => {
       return json({ error: "That order has already been paid." }, 409);
     }
     // An order placed while signed in can only be paid by that same account.
+    // In-store charges are created by the barista BEFORE the customer signs
+    // in, so user_id starts null there and is claimed on payment below.
     if (orderRow.user_id && orderRow.user_id !== userId) {
       return json({ error: "That order belongs to a different account." }, 403);
     }
 
-    pickupDate = orderRow.pickup_date ?? body.pickupDate ?? null;
-    pickupTime = orderRow.pickup_time ?? body.pickupTime ?? null;
+    const isInStore = orderRow.order_type === "instore";
+
+    if (!isInStore) {
+      pickupDate = orderRow.pickup_date ?? body.pickupDate ?? null;
+      pickupTime = orderRow.pickup_time ?? body.pickupTime ?? null;
+    }
 
     // ── Cutoff: no ordering for a day once 7 PM the evening before passes. ──
-    if (!pickupDate || !isPickupDateOrderable(pickupDate)) {
+    // Doesn't apply in store: there's no pickup slot to protect and the
+    // customer is already at the counter.
+    if (!isInStore && (!pickupDate || !isPickupDateOrderable(pickupDate))) {
       await rollback(orderId, pickupDate, pickupTime);
       return json({
         error: "Ordering has closed for that pickup day. Orders must be placed by 7:00 PM the evening before.",
@@ -265,7 +275,10 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── Re-price the cart ourselves. The client's numbers are display-only. ──
-    const priced = priceCart(items ?? []);
+    // For an in-store charge the authoritative item list is the one the
+    // barista saved on the row — the paying phone doesn't get to change it.
+    const priceSource = isInStore ? (orderRow.items ?? []) : (items ?? []);
+    const priced = priceCart(priceSource as CartItem[]);
     if (!priced) {
       await rollback(orderId, pickupDate, pickupTime);
       return json({ error: "We couldn't price that order. Please rebuild your cart and try again." }, 400);
@@ -363,6 +376,9 @@ Deno.serve(async (req: Request) => {
         discount,
         tax,
         total: rawCharge,
+        // An in-store charge is claimed by whoever actually paid it, so it
+        // shows up in their order history alongside the stamp they earned.
+        ...(isInStore && userId ? { user_id: userId } : {}),
       })
       .eq("id", orderId);
     if (updateErr) {

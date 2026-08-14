@@ -479,3 +479,23 @@ button {
 @media (prefers-reduced-motion: reduce) {
   .gallery-cell img { transition: none; }
 }
+
+/* ─────────────────────────────────────────────────────
+   Counter QR — printing the self-service sign.
+   Everything except the printed card is hidden so a plain
+   Cmd+P produces the card alone, not the whole dashboard.
+   ───────────────────────────────────────────────────── */
+@media print {
+  body * { visibility: hidden; }
+  .counter-qr .print-card,
+  .counter-qr .print-card * { visibility: visible; }
+  .counter-qr .print-card {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    border: none !important;
+    box-shadow: none !important;
+  }
+  .no-print { display: none !important; }
+}

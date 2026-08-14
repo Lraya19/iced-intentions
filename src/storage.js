@@ -95,6 +95,19 @@ export async function bookSlot(date, slotTime, customerName) {
 // ORDERS
 // ═══════════════════════════════════════════════════════
 
+// Read a barista-created in-store charge so the customer can see what
+// they're paying for. They aren't signed in yet and RLS only exposes a
+// person's own orders, so this goes through a SECURITY DEFINER function
+// that returns items + subtotal only — no customer PII, and only ever for
+// an unpaid in-store order. Knowing the (unguessable) id is the key.
+export async function getPayableOrder(orderId) {
+  if (!isSupabaseConfigured || !orderId) return null;
+  const { data, error } = await supabase.rpc('get_payable_order', { p_id: orderId });
+  if (error) { console.warn('payable order read failed:', error.message); return null; }
+  const row = Array.isArray(data) ? data[0] : data;
+  return row || null;
+}
+
 // Save an order. Maps the order object to the orders table columns.
 // Inserted as 'pending'; process-payment promotes it to 'paid'.
 export async function saveOrder(orderId, order) {
@@ -109,6 +122,7 @@ export async function saveOrder(orderId, order) {
   const row = {
     id: orderId,
     user_id: order.userId || null,
+    order_type: order.orderType || 'pickup',
     pickup_date: order.pickupDate,
     pickup_time: order.pickupTime,
     pickup_time_display: order.pickupTimeDisplay || null,

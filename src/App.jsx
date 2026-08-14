@@ -5,9 +5,9 @@ import {
   Coffee, Star, Loader2, Menu as MenuIcon, CreditCard, Lock,
   User, LogOut, Gift, Mail, Trash2, RotateCcw,
   LayoutDashboard, Power, PauseCircle, PlayCircle, CheckCircle2, Package, RefreshCw,
-  TrendingUp, Download,
+  TrendingUp, Download, QrCode as QrCodeIcon, Printer,
 } from 'lucide-react';
-import { subscribeToSlots, bookSlot, saveOrder } from './storage';
+import { subscribeToSlots, bookSlot, saveOrder, getPayableOrder } from './storage';
 import { sendOrderEmails } from './email';
 import {
   isSquareConfigured, initSquarePayments, initApplePay, tokenize, chargePayment,
@@ -29,7 +29,7 @@ const BUSINESS = {
   name: 'Iced Intentions',
   phone: import.meta.env.VITE_BUSINESS_PHONE || '(972) 555-0142',
   address: import.meta.env.VITE_BUSINESS_ADDRESS || '1247 Las Colinas Blvd, Irving, TX 75039',
-  instagram: import.meta.env.VITE_BUSINESS_INSTAGRAM || '@icedintentions',
+  instagram: import.meta.env.VITE_BUSINESS_INSTAGRAM || '@iced.intentions_',
   hours: {
     wednesday: '6:00 – 9:00 AM',
     friday: '6:00 – 9:00 AM',
@@ -809,6 +809,59 @@ const CheckoutInput = ({ label, value, onChange, placeholder, type = 'text' }) =
 );
 
 // ═══════════════════════════════════════════════════════
+// QR CODE
+// ───────────────────────────────────────────────────────
+// The encoder is ~50KB and only the owner ever needs it, so it's loaded
+// on demand rather than shipped to every customer.
+// ═══════════════════════════════════════════════════════
+const QrCode = ({ value, size = 220, label }) => {
+  const [dataUrl, setDataUrl] = useState('');
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    setDataUrl(''); setFailed(false);
+    (async () => {
+      try {
+        const QR = (await import('qrcode')).default;
+        const url = await QR.toDataURL(value, {
+          width: size * 2, margin: 1, errorCorrectionLevel: 'M',
+          color: { dark: '#2A1810', light: '#FFFEFA' },
+        });
+        if (alive) setDataUrl(url);
+      } catch (err) {
+        console.warn('QR generation failed:', err);
+        if (alive) setFailed(true);
+      }
+    })();
+    return () => { alive = false; };
+  }, [value, size]);
+
+  if (failed) {
+    return (
+      <p style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', color: '#A83A56', wordBreak: 'break-all' }}>
+        Couldn't draw the QR code. Use this link instead: {value}
+      </p>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
+      <div style={{ width: size, height: size, background: '#FFFEFA', borderRadius: '12px', padding: '10px', boxShadow: '0 2px 12px rgba(42,24,16,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {dataUrl
+          ? <img src={dataUrl} alt={label || 'QR code'} style={{ width: '100%', height: '100%', display: 'block' }} />
+          : <Loader2 size={22} className="spin" color="#5C3A21" />}
+      </div>
+      {label && (
+        <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.12em', textTransform: 'uppercase', color: '#5C3A21', textAlign: 'center' }}>
+          {label}
+        </span>
+      )}
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════
 // DRINK CUSTOMIZER MODAL
 // ═══════════════════════════════════════════════════════
 const DrinkCustomizer = ({ drink, onClose, onAdd, user, onSignIn }) => {
@@ -965,7 +1018,7 @@ const DrinkCustomizer = ({ drink, onClose, onAdd, user, onSignIn }) => {
 // ═══════════════════════════════════════════════════════
 // CHECKOUT FLOW
 // ═══════════════════════════════════════════════════════
-const CheckoutFlow = ({ cart, cartTotal, user, paused, onBack, onComplete }) => {
+const CheckoutFlow = ({ cart, cartTotal, user, paused, inStore = false, onBack, onComplete }) => {
   const [selectedDate, setSelectedDate] = useState(getUpcomingPickupDays()[0]?.iso || '');
   const [selectedTime, setSelectedTime] = useState(null);
   const [bookedSlots, setBookedSlots] = useState({});
@@ -1030,7 +1083,7 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, onBack, onComplete }) => 
 
   // If the selected day closes underneath them, move to the next open one.
   useEffect(() => {
-    if (days.length === 0) return;
+    if (inStore || days.length === 0) return;
     if (!days.some(d => d.iso === selectedDate)) {
       setSelectedDate(days[0].iso);
       setSelectedTime(null);
@@ -1044,14 +1097,16 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, onBack, onComplete }) => 
     return () => clearInterval(t);
   }, []);
 
-  // Real-time subscribe to slot updates for the selected date
+  // Real-time subscribe to slot updates for the selected date.
+  // Skipped in store: no slot is reserved, and selectedDate may be empty.
   useEffect(() => {
     setBookedSlots({});
+    if (inStore || !selectedDate) return;
     const unsubscribe = subscribeToSlots(selectedDate, (slots) => {
       setBookedSlots(slots);
     });
     return unsubscribe;
-  }, [selectedDate]);
+  }, [selectedDate, inStore]);
 
   // Initialize the Square card form once, on mount. The container below is
   // always rendered (only ever hidden with display:none for a fully-free
@@ -1132,7 +1187,7 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, onBack, onComplete }) => 
   // Shared validation before submitting.
   const validate = () => {
     setError('');
-    if (!selectedTime) { setError('Please choose a pickup time.'); return false; }
+    if (!inStore && !selectedTime) { setError('Please choose a pickup time.'); return false; }
     if (!customerInfo.name || !customerInfo.phone) { setError('Name and phone are required.'); return false; }
     // Every order is paid on the site, so a real email is always required
     // for the receipt and confirmation.
@@ -1165,7 +1220,10 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, onBack, onComplete }) => 
       //    If the charge then fails, process-payment releases the slot and
       //    clears the pending row server-side, so a declined card doesn't
       //    silently eat one of the two spots for that time.
-      await bookSlot(selectedDate, selectedTime, customerInfo.name);
+      //    In store there is no slot: they're already at the counter.
+      if (!inStore) {
+        await bookSlot(selectedDate, selectedTime, customerInfo.name);
+      }
 
       // 4. Insert the order as 'pending'. The Edge Function flips it to 'paid'
       //    server-side after charging, and stores the real charged amount.
@@ -1173,11 +1231,12 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, onBack, onComplete }) => 
         id: orderId,
         placedAt: new Date().toISOString(),
         userId: user?.id || null,
-        pickupDate: selectedDate,
-        pickupTime: selectedTime,
-        pickupTimeDisplay: allSlots.find(s => s.time === selectedTime)?.display,
+        pickupDate: inStore ? formatLocalDate(new Date()) : selectedDate,
+        pickupTime: inStore ? null : selectedTime,
+        pickupTimeDisplay: inStore ? 'In-store' : allSlots.find(s => s.time === selectedTime)?.display,
         customer: customerInfo,
         items: cart,
+        orderType: inStore ? 'instore' : 'pickup',
         // Provisional figures; the Edge Function recomputes all of these
         // server-side and overwrites the row with the authoritative values.
         subtotal: cartTotal,
@@ -1198,8 +1257,8 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, onBack, onComplete }) => 
         redeem: (canRedeem && redeemOn),
         items: cart.map(i => ({ drinkId: i.drinkId, size: i.size, qty: i.qty, addOns: i.addOns || [] })),
         buyerEmail: customerInfo.email,
-        pickupDate: selectedDate,
-        pickupTime: selectedTime,
+        pickupDate: inStore ? formatLocalDate(new Date()) : selectedDate,
+        pickupTime: inStore ? null : selectedTime,
         note: `Iced Intentions — ${cart.length} item(s), pickup ${selectedDate} ${selectedTime}`,
       });
 
@@ -1242,7 +1301,7 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, onBack, onComplete }) => 
 
   // Checkout is blocked whenever we can't take money, or there's no open
   // pickup day left to book (every upcoming day's cutoff has passed).
-  const checkoutBlocked = payUnavailable || paused || days.length === 0;
+  const checkoutBlocked = payUnavailable || paused || (!inStore && days.length === 0);
   const submitDisabled = submitting || checkoutBlocked || (!isFreeOrder && !cardReady);
 
   return (
@@ -1259,6 +1318,18 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, onBack, onComplete }) => 
           </h1>
         </div>
 
+        {inStore ? (
+          <div style={{ background: '#2A1810', color: '#FAF1E4', padding: '18px 20px', borderRadius: '12px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <Coffee size={20} />
+            <div>
+              <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '19px', fontStyle: 'italic', fontWeight: 600 }}>Paying at the counter</div>
+              <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', opacity: 0.8, marginTop: '2px' }}>
+                No pickup time needed — pay here and collect your stamp.
+              </div>
+            </div>
+          </div>
+        ) : (
+          <>
         <div style={{ background: '#FFFEFA', padding: '20px', borderRadius: '4px', marginBottom: '16px', border: '1px solid rgba(92, 58, 33, 0.1)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
             <Calendar size={18} color="#2A1810" />
@@ -1322,6 +1393,9 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, onBack, onComplete }) => 
             );
           })()}
         </div>
+
+          </>
+        )}
 
         <div style={{ background: '#FFFEFA', padding: '20px', borderRadius: '4px', marginBottom: '16px', border: '1px solid rgba(92, 58, 33, 0.1)' }}>
           <h3 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '20px', color: '#2A1810', margin: '0 0 16px 0', fontWeight: 500 }}>Your Info</h3>
@@ -1467,14 +1541,15 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, onBack, onComplete }) => 
         </div>
 
         {/* Order is final once placed — she preps from a closed list the
-            evening before, so there's no window to change it afterwards. */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', background: '#F0E2C9', border: '1px solid rgba(92,58,33,0.15)', borderRadius: '8px', padding: '14px 16px', marginBottom: '16px' }}>
+            evening before, so there's no window to change it afterwards.
+            Irrelevant in store, where the drink is made there and then. */}
+        {!inStore && <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', background: '#F0E2C9', border: '1px solid rgba(92,58,33,0.15)', borderRadius: '8px', padding: '14px 16px', marginBottom: '16px' }}>
           <Lock size={15} color="#5C3A21" style={{ flexShrink: 0, marginTop: '2px' }} />
           <p style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '15px', color: '#3D2817', margin: 0, lineHeight: 1.5 }}>
             <strong style={{ fontWeight: 600 }}>Please double-check your order.</strong> Once it's placed we can't add
             to it or change it — everything is prepped ahead from the day's final list.
           </p>
-        </div>
+        </div>}
 
         {error && (
           <div style={{ background: 'rgba(232, 85, 122, 0.1)', border: '1px solid rgba(232, 85, 122, 0.3)', padding: '14px', borderRadius: '4px', marginBottom: '16px', fontFamily: '"Outfit", sans-serif', fontSize: '14px', color: '#A83A56' }}>
@@ -1494,7 +1569,9 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, onBack, onComplete }) => 
         </button>
 
         <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '13px', color: '#5C3A21', textAlign: 'center', marginTop: '14px' }}>
-          You'll get a receipt by email. We'll have your order ready right at your time.
+          {inStore
+            ? "You'll get a receipt by email, and your stamp lands straight on your card."
+            : "You'll get a receipt by email. We'll have your order ready right at your time."}
         </p>
       </div>
     </div>
@@ -1579,6 +1656,278 @@ const OrderConfirmation = ({ order, onClose }) => (
     </div>
   </div>
 );
+
+// ═══════════════════════════════════════════════════════
+// SCAN TO PAY  (reached by ?pay=<orderId>)
+// ───────────────────────────────────────────────────────
+// The barista has already taken the order at the counter and built the
+// charge; the customer scans it and pays on their phone so the purchase
+// is tied to their account and earns a stamp. Nothing about the order can
+// be changed here — process-payment prices it from the row the barista
+// saved, not from anything this page sends.
+// ═══════════════════════════════════════════════════════
+const ScanToPayPage = ({ orderId, user, onSignIn, onDone }) => {
+  const [order, setOrder] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [cardReady, setCardReady] = useState(false);
+  const [cardObj, setCardObj] = useState(null);
+  const [payUnavailable, setPayUnavailable] = useState(!isSquareConfigured());
+  const [loyaltyBalance, setLoyaltyBalance] = useState(0);
+  const [redeemOn, setRedeemOn] = useState(false);
+  const [receipt, setReceipt] = useState(null);
+  const cardMounted = useRef(false);
+
+  useEffect(() => {
+    let alive = true;
+    getPayableOrder(orderId).then(row => {
+      if (!alive) return;
+      setOrder(row);
+      setLoading(false);
+    });
+    return () => { alive = false; };
+  }, [orderId]);
+
+  useEffect(() => {
+    let alive = true;
+    if (user) getLoyaltyBalance(user.id).then(b => { if (alive) setLoyaltyBalance(b); });
+    else { setLoyaltyBalance(0); setRedeemOn(false); }
+    return () => { alive = false; };
+  }, [user]);
+
+  const items = order?.items || [];
+  const subtotal = Number(order?.subtotal ?? 0);
+  const canRedeem = Boolean(user) && loyaltyBalance >= STAMPS_FOR_REWARD;
+  const cheapest = useMemo(() => {
+    const prices = items.map(i => Number(i.basePrice)).filter(p => Number.isFinite(p) && p > 0);
+    return prices.length ? Math.min(...prices) : 0;
+  }, [items]);
+  const discount = (canRedeem && redeemOn) ? cheapest : 0;
+  const taxable = Math.max(0, round2(subtotal - discount));
+  const tax = round2(taxable * TAX_RATE);
+  const total = round2(taxable + tax);
+  const isFree = total <= 0;
+
+  // Mount the card once we have both an order to pay and a signed-in payer.
+  useEffect(() => {
+    let cancelled = false;
+    let localCard = null;
+    if (!order || !user || payUnavailable || cardMounted.current) return;
+    (async () => {
+      try {
+        const { card } = await initSquarePayments('si-scan-card');
+        if (cancelled) { try { await card.destroy(); } catch { /* noop */ } return; }
+        cardMounted.current = true;
+        localCard = card;
+        setCardObj(card);
+        setCardReady(true);
+      } catch (err) {
+        console.error('Square init failed:', err);
+        if (!cancelled) setPayUnavailable(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (localCard) { cardMounted.current = false; try { localCard.destroy(); } catch { /* noop */ } }
+    };
+  }, [order, user, payUnavailable]);
+
+  const pay = async () => {
+    if (!user) { onSignIn(); return; }
+    if (!isFree && !cardObj) { setError('Payment form is still loading. One moment...'); return; }
+    setSubmitting(true); setError('');
+    try {
+      const token = isFree ? null : await tokenize(cardObj);
+      const result = await chargePayment({
+        sourceId: token,
+        orderId,
+        redeem: (canRedeem && redeemOn),
+        items: items.map(i => ({ drinkId: i.drinkId, size: i.size, qty: i.qty, addOns: i.addOns || [] })),
+        buyerEmail: user.email,
+        note: `Iced Intentions — in-store ${orderId}`,
+      });
+      setReceipt({
+        total: result.amountCharged ?? total,
+        tax: result.tax ?? tax,
+        discount: result.discountApplied || 0,
+        receiptUrl: result.receiptUrl,
+        redeemed: Boolean(result.redeemed),
+      });
+    } catch (err) {
+      setError(err.message || 'Something went wrong. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const Shell = ({ children }) => (
+    <div style={{ background: '#FAF1E4', minHeight: '100vh', padding: '32px 20px 60px 20px' }}>
+      <div style={{ maxWidth: '480px', margin: '0 auto' }}>{children}</div>
+    </div>
+  );
+
+  if (loading) {
+    return <Shell><div style={{ textAlign: 'center', padding: '60px' }}><Loader2 size={26} className="spin" color="#5C3A21" /></div></Shell>;
+  }
+
+  // Covers a mistyped link, an expired charge, and one that's already paid.
+  if (!order) {
+    return (
+      <Shell>
+        <div style={{ textAlign: 'center', padding: '40px 0' }}>
+          <Coffee size={30} color="#5C3A21" />
+          <h1 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '26px', color: '#2A1810', margin: '16px 0 8px 0', fontWeight: 500 }}>
+            This charge isn't available
+          </h1>
+          <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '16px', color: '#5C3A21', margin: '0 0 24px 0' }}>
+            It may have already been paid, or the link may be out of date. Ask us to scan you a fresh one.
+          </p>
+          <button onClick={onDone} style={{ background: '#2A1810', color: '#FAF1E4', padding: '13px 28px', borderRadius: '999px', border: 'none', fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>
+            Go to the menu
+          </button>
+        </div>
+      </Shell>
+    );
+  }
+
+  if (receipt) {
+    return (
+      <Shell>
+        <div style={{ textAlign: 'center', padding: '30px 0' }}>
+          <div style={{ display: 'inline-flex', width: '74px', height: '74px', borderRadius: '50%', background: '#E8A4B8', alignItems: 'center', justifyContent: 'center', marginBottom: '18px' }}>
+            <Check size={34} color="#FFFEFA" />
+          </div>
+          <h1 style={{ fontFamily: '"Pinyon Script", cursive', fontSize: '52px', color: '#2A1810', margin: '0 0 6px 0', fontWeight: 400, lineHeight: 1 }}>paid</h1>
+          <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '18px', color: '#5C3A21', margin: '0 0 6px 0' }}>
+            ${Number(receipt.total).toFixed(2)} — thank you!
+          </p>
+          <p style={{ fontFamily: '"Outfit", sans-serif', fontSize: '13px', color: '#3D7A4F', fontWeight: 600, margin: '0 0 26px 0' }}>
+            {receipt.redeemed ? '🎁 Reward redeemed' : '☕ Stamp added to your card'}
+          </p>
+          {receipt.receiptUrl && (
+            <p style={{ marginBottom: '20px' }}>
+              <a href={receipt.receiptUrl} target="_blank" rel="noopener noreferrer" style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.12em', textTransform: 'uppercase', color: '#5C3A21' }}>
+                View receipt
+              </a>
+            </p>
+          )}
+          <button onClick={onDone} style={{ background: '#2A1810', color: '#FAF1E4', padding: '13px 28px', borderRadius: '999px', border: 'none', fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>
+            View my card
+          </button>
+        </div>
+      </Shell>
+    );
+  }
+
+  return (
+    <Shell>
+      <div style={{ textAlign: 'center', marginBottom: '22px' }}>
+        <InfinityHeart size={34} color="#2A1810" />
+        <h1 style={{ fontFamily: '"Pinyon Script", cursive', fontSize: '44px', color: '#2A1810', margin: '4px 0 0 0', fontWeight: 400, lineHeight: 1 }}>
+          your order
+        </h1>
+      </div>
+
+      <div style={{ background: '#FFFEFA', border: '1px solid rgba(92,58,33,0.12)', borderRadius: '12px', padding: '18px 20px', marginBottom: '16px' }}>
+        {items.map((i, idx) => (
+          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '12px', marginBottom: '8px' }}>
+            <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '16px', color: '#2A1810', fontStyle: 'italic' }}>
+              {i.qty}× {i.name}
+              <span style={{ fontSize: '12px', opacity: 0.65 }}> ({i.sizeDisplay || i.size})</span>
+            </span>
+            <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '16px', fontWeight: 600, color: '#2A1810', flexShrink: 0 }}>
+              ${Number(i.lineTotal || 0).toFixed(2)}
+            </span>
+          </div>
+        ))}
+        <div style={{ borderTop: '1px solid rgba(92,58,33,0.15)', marginTop: '10px', paddingTop: '10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          {discount > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', color: '#A83A56' }}>Free drink reward</span>
+              <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '15px', color: '#A83A56', fontWeight: 600 }}>−${discount.toFixed(2)}</span>
+            </div>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', color: '#5C3A21' }}>Sales tax</span>
+            <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '15px', color: '#2A1810' }}>${tax.toFixed(2)}</span>
+          </div>
+        </div>
+        <div style={{ borderTop: '1px solid rgba(92,58,33,0.2)', marginTop: '10px', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+          <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.2em', textTransform: 'uppercase', color: '#5C3A21' }}>Total</span>
+          <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '28px', color: '#2A1810', fontWeight: 600 }}>${total.toFixed(2)}</span>
+        </div>
+      </div>
+
+      {!user ? (
+        /* Sign-in is the whole point: a stamp has to attach to an account. */
+        <div style={{ background: 'linear-gradient(135deg, #2A1810, #5C3A21)', borderRadius: '14px', padding: '22px', textAlign: 'center' }}>
+          <Gift size={24} color="#E8A4B8" />
+          <h2 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '21px', color: '#FAF1E4', margin: '10px 0 6px 0', fontWeight: 600, fontStyle: 'italic' }}>
+            Sign in to collect your stamp
+          </h2>
+          <p style={{ fontFamily: '"Outfit", sans-serif', fontSize: '13px', color: 'rgba(250,241,228,0.85)', margin: '0 0 18px 0', lineHeight: 1.5 }}>
+            One quick code by email — then pay here and your 11th drink gets closer.
+          </p>
+          <button onClick={onSignIn}
+            style={{ background: '#E8A4B8', color: '#2A1810', padding: '14px 30px', borderRadius: '999px', border: 'none', fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 600, cursor: 'pointer' }}>
+            Sign in / Join
+          </button>
+        </div>
+      ) : payUnavailable ? (
+        <div style={{ background: 'rgba(232,85,122,0.08)', border: '1px solid rgba(232,85,122,0.3)', borderRadius: '8px', padding: '16px' }}>
+          <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '15px', color: '#2A1810', margin: 0 }}>
+            Card payments aren't available right now — please pay at the counter. Sorry about that. 🤍
+          </p>
+        </div>
+      ) : (
+        <>
+          {canRedeem && (
+            <button onClick={() => setRedeemOn(!redeemOn)} data-compact
+              style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', background: redeemOn ? '#2A1810' : '#FFFEFA', color: redeemOn ? '#FAF1E4' : '#2A1810', border: `1.5px solid ${redeemOn ? '#2A1810' : '#E8A4B8'}`, borderRadius: '12px', padding: '14px 16px', marginBottom: '14px', cursor: 'pointer', textAlign: 'left' }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <Gift size={18} />
+                <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '16px', fontStyle: 'italic', fontWeight: 600 }}>
+                  {redeemOn ? `Reward applied (−$${cheapest.toFixed(2)})` : `Use a free drink — ${loyaltyBalance} stamps`}
+                </span>
+              </span>
+              <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, flexShrink: 0 }}>
+                {redeemOn ? 'Remove' : 'Redeem'}
+              </span>
+            </button>
+          )}
+
+          <div style={{ background: '#FFFEFA', border: '1px solid rgba(92,58,33,0.12)', borderRadius: '12px', padding: '18px', marginBottom: '14px', display: isFree ? 'none' : 'block' }}>
+            <div id="si-scan-card" style={{ minHeight: '52px' }} />
+            {!cardReady && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#5C3A21', fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '14px' }}>
+                <Loader2 size={14} className="spin" /> Loading secure card form...
+              </div>
+            )}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', marginTop: '8px', color: '#5C3A21', fontFamily: '"Outfit", sans-serif', fontSize: '11px' }}>
+              <Lock size={11} /> Secured by Square
+            </div>
+          </div>
+
+          {error && (
+            <div style={{ background: 'rgba(232,85,122,0.1)', border: '1px solid rgba(232,85,122,0.3)', padding: '13px', borderRadius: '6px', marginBottom: '14px', fontFamily: '"Outfit", sans-serif', fontSize: '13px', color: '#A83A56' }}>
+              {error}
+            </div>
+          )}
+
+          <button onClick={pay} disabled={submitting || (!isFree && !cardReady)}
+            style={{ width: '100%', background: '#2A1810', color: '#FAF1E4', padding: '17px', border: 'none', borderRadius: '999px', fontFamily: '"Outfit", sans-serif', fontSize: '13px', letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, cursor: (submitting || (!isFree && !cardReady)) ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', opacity: (!isFree && !cardReady) ? 0.6 : 1 }}>
+            {submitting
+              ? <><Loader2 size={16} className="spin" /> Processing...</>
+              : isFree
+                ? <><Gift size={15} /> Redeem — $0.00</>
+                : <><Lock size={14} /> Pay ${total.toFixed(2)}</>}
+          </button>
+        </>
+      )}
+    </Shell>
+  );
+};
 
 // ═══════════════════════════════════════════════════════
 // ORDER PAGE
@@ -1672,7 +2021,7 @@ const CartDrawer = ({ cart, cartTotal, onClose, onRemove, onCheckout, onBrowse }
   );
 };
 
-const OrderPage = ({ cart, setCart, user, onSignIn }) => {
+const OrderPage = ({ cart, setCart, user, onSignIn, inStore = false }) => {
   const [activeCategory, setActiveCategory] = useState('matcha');
   const [selectedDrink, setSelectedDrink] = useState(null);
   const [showCheckout, setShowCheckout] = useState(false);
@@ -1716,7 +2065,7 @@ const OrderPage = ({ cart, setCart, user, onSignIn }) => {
     return <OrderConfirmation order={confirmation} onClose={() => { setConfirmation(null); setCart([]); }} />;
   }
   if (showCheckout) {
-    return <CheckoutFlow cart={cart} cartTotal={cartTotal} user={user} paused={paused} onBack={() => setShowCheckout(false)} onComplete={(order) => { setConfirmation(order); setShowCheckout(false); }} />;
+    return <CheckoutFlow cart={cart} cartTotal={cartTotal} user={user} paused={paused} inStore={inStore} onBack={() => setShowCheckout(false)} onComplete={(order) => { setConfirmation(order); setShowCheckout(false); }} />;
   }
 
   return (
@@ -2345,6 +2694,243 @@ const DashboardPage = ({ user, setPage, onReorder, isAdmin }) => {
 };
 
 // ═══════════════════════════════════════════════════════════════
+// CHARGE IN PERSON (owner only)
+// ───────────────────────────────────────────────────────────────
+// The customer has already ordered at the counter. Rather than making
+// them rebuild the whole thing on their phone, the barista taps it in
+// here, hits Create, and shows them the QR. They scan, sign in, pay, and
+// the stamp lands on their card.
+// ═══════════════════════════════════════════════════════════════
+const InPersonCharge = () => {
+  const [lines, setLines] = useState([]);
+  const [charge, setCharge] = useState(null);
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState('');
+
+  const allDrinks = useMemo(
+    () => Object.values(MENU).flatMap(c => c.items),
+    [],
+  );
+
+  const addLine = (drink, size) => {
+    const basePrice = size === 'L' ? drink.priceL : drink.priceBucket;
+    setLines(ls => [...ls, {
+      key: `${drink.id}-${size}-${ls.length}-${Date.now()}`,
+      drinkId: drink.id, name: drink.name, size,
+      sizeDisplay: sizeLabel(drink.id, size),
+      addOns: [], qty: 1, basePrice,
+    }]);
+    setCharge(null);
+  };
+
+  const patchLine = (key, patch) => {
+    setLines(ls => ls.map(l => l.key === key ? { ...l, ...patch } : l));
+    setCharge(null);
+  };
+  const removeLine = (key) => { setLines(ls => ls.filter(l => l.key !== key)); setCharge(null); };
+
+  const lineTotal = (l) => {
+    const addOnSum = l.addOns.reduce((s, id) => s + (ADD_ONS.find(a => a.id === id)?.price || 0), 0);
+    return round2((l.basePrice + addOnSum) * l.qty);
+  };
+  const subtotal = round2(lines.reduce((s, l) => s + lineTotal(l), 0));
+  const tax = round2(subtotal * TAX_RATE);
+  const total = round2(subtotal + tax);
+
+  const createCharge = async () => {
+    if (lines.length === 0) return;
+    setCreating(true); setError('');
+    try {
+      // A random id, not a sequential one: it goes in a URL the customer
+      // scans, and a guessable id would let a stranger pay someone's tab.
+      const id = `ins_${(crypto.randomUUID?.() || `${Date.now()}${Math.random()}`).replace(/-/g, '')}`;
+      const items = lines.map(l => ({
+        drinkId: l.drinkId, name: l.name, size: l.size, sizeDisplay: l.sizeDisplay,
+        addOns: l.addOns, qty: l.qty, basePrice: l.basePrice, lineTotal: lineTotal(l),
+      }));
+      await saveOrder(id, {
+        id,
+        orderType: 'instore',
+        userId: null, // claimed by whoever pays it
+        pickupDate: formatLocalDate(new Date()),
+        pickupTime: null,
+        pickupTimeDisplay: 'In-store',
+        customer: { name: 'In-store', phone: '', email: '' },
+        items,
+        subtotal, discount: 0, tax, total,
+        paymentStatus: 'pending',
+      });
+      setCharge({ id, url: `${window.location.origin}/?pay=${id}`, total });
+    } catch (err) {
+      console.error(err);
+      setError(err.message || 'Could not create the charge. Please try again.');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const reset = () => { setLines([]); setCharge(null); setError(''); };
+
+  if (charge) {
+    return (
+      <div style={{ background: '#FFFEFA', border: '1px solid rgba(92,58,33,0.1)', borderRadius: '16px', padding: '22px', marginBottom: '24px', textAlign: 'center' }}>
+        <h2 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '24px', color: '#2A1810', margin: '0 0 4px 0', fontWeight: 500 }}>
+          Have them scan this
+        </h2>
+        <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '16px', color: '#5C3A21', margin: '0 0 18px 0' }}>
+          ${charge.total.toFixed(2)} — they'll sign in, pay, and get their stamp.
+        </p>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
+          <QrCode value={charge.url} size={230} />
+        </div>
+        <p style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', color: '#5C3A21', wordBreak: 'break-all', margin: '0 0 18px 0' }}>
+          {charge.url}
+        </p>
+        <button onClick={reset}
+          style={{ background: '#2A1810', color: '#FAF1E4', padding: '13px 28px', borderRadius: '999px', border: 'none', fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 500, cursor: 'pointer' }}>
+          New charge
+        </button>
+        <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '13px', color: '#5C3A21', margin: '14px 0 0 0' }}>
+          It'll appear on today's board as paid the moment they finish.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ background: '#FFFEFA', border: '1px solid rgba(92,58,33,0.1)', borderRadius: '16px', padding: '22px', marginBottom: '24px' }}>
+      <h2 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '24px', color: '#2A1810', margin: '0 0 4px 0', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '9px' }}>
+        <QrCodeIcon size={18} /> Charge in person
+      </h2>
+      <p style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', color: '#5C3A21', margin: '0 0 16px 0' }}>
+        Tap what they ordered, then show them the QR so they can pay on their phone and earn a stamp.
+      </p>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(168px, 1fr))', gap: '7px', marginBottom: '18px' }}>
+        {allDrinks.map(d => (
+          <div key={d.id} style={{ border: '1.5px solid rgba(92,58,33,0.15)', borderRadius: '10px', padding: '9px 11px', background: '#FAF1E4' }}>
+            <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '15px', fontStyle: 'italic', fontWeight: 600, color: '#2A1810', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '6px' }}>
+              {d.name}
+            </div>
+            <div style={{ display: 'flex', gap: '5px' }}>
+              {(d.singleSize ? [['BUCKET', '32 oz', d.priceBucket]] : [['L', 'L', d.priceL], ['BUCKET', 'Bkt', d.priceBucket]]).map(([sz, lbl, pr]) => (
+                <button key={sz} onClick={() => addLine(d, sz)} data-compact
+                  style={{ flex: 1, padding: '6px 4px', borderRadius: '6px', border: 'none', background: '#2A1810', color: '#FAF1E4', fontFamily: '"Outfit", sans-serif', fontSize: '10px', letterSpacing: '0.06em', fontWeight: 600, cursor: 'pointer' }}>
+                  {lbl} ${pr.toFixed(2)}
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {lines.length === 0 ? (
+        <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '15px', color: '#5C3A21', textAlign: 'center', padding: '14px', margin: 0 }}>
+          Nothing added yet.
+        </p>
+      ) : (
+        <div style={{ borderTop: '1px solid rgba(92,58,33,0.12)', paddingTop: '14px' }}>
+          {lines.map(l => (
+            <div key={l.key} style={{ borderBottom: '1px solid rgba(92,58,33,0.08)', paddingBottom: '10px', marginBottom: '10px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+                <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '16px', fontStyle: 'italic', fontWeight: 600, color: '#2A1810', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {l.name} <span style={{ fontSize: '12px', opacity: 0.7 }}>({l.sizeDisplay})</span>
+                </span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                  <button onClick={() => patchLine(l.key, { qty: Math.max(1, l.qty - 1) })} data-compact style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1.5px solid rgba(92,58,33,0.25)', background: '#FFFEFA', cursor: 'pointer' }}>−</button>
+                  <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '17px', fontWeight: 600, minWidth: '20px', textAlign: 'center' }}>{l.qty}</span>
+                  <button onClick={() => patchLine(l.key, { qty: l.qty + 1 })} data-compact style={{ width: '28px', height: '28px', borderRadius: '50%', border: '1.5px solid rgba(92,58,33,0.25)', background: '#FFFEFA', cursor: 'pointer' }}>+</button>
+                  <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '16px', fontWeight: 600, minWidth: '54px', textAlign: 'right' }}>${lineTotal(l).toFixed(2)}</span>
+                  <button onClick={() => removeLine(l.key)} data-compact style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#A83A56', padding: '2px' }} aria-label="Remove"><X size={15} /></button>
+                </span>
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginTop: '7px' }}>
+                {ADD_ONS.map(a => {
+                  const on = l.addOns.includes(a.id);
+                  return (
+                    <button key={a.id} data-compact
+                      onClick={() => patchLine(l.key, { addOns: on ? l.addOns.filter(x => x !== a.id) : [...l.addOns, a.id] })}
+                      style={{ padding: '4px 9px', borderRadius: '999px', border: `1px solid ${on ? '#E8A4B8' : 'rgba(92,58,33,0.2)'}`, background: on ? '#E8A4B8' : 'transparent', color: '#2A1810', fontFamily: '"Outfit", sans-serif', fontSize: '10px', cursor: 'pointer' }}>
+                      {a.name} +${a.price.toFixed(2)}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: '"Outfit", sans-serif', fontSize: '12px', color: '#5C3A21', marginBottom: '4px' }}>
+            <span>Subtotal</span><span>${subtotal.toFixed(2)}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontFamily: '"Outfit", sans-serif', fontSize: '12px', color: '#5C3A21', marginBottom: '10px' }}>
+            <span>Sales tax</span><span>${tax.toFixed(2)}</span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '14px' }}>
+            <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.18em', textTransform: 'uppercase', color: '#5C3A21' }}>Total</span>
+            <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '26px', fontWeight: 600, color: '#2A1810' }}>${total.toFixed(2)}</span>
+          </div>
+
+          {error && (
+            <p style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', color: '#A83A56', marginBottom: '10px' }}>{error}</p>
+          )}
+
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button onClick={reset} data-compact
+              style={{ padding: '13px 18px', borderRadius: '999px', border: '1.5px solid rgba(92,58,33,0.25)', background: 'transparent', color: '#5C3A21', fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>
+              Clear
+            </button>
+            <button onClick={createCharge} disabled={creating}
+              style={{ flex: 1, background: '#2A1810', color: '#FAF1E4', padding: '13px', border: 'none', borderRadius: '999px', fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 500, cursor: creating ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '9px' }}>
+              {creating ? <><Loader2 size={15} className="spin" /> Creating...</> : <>Create charge <ChevronRight size={14} /></>}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════
+// COUNTER QR (owner only) — the printable self-service sign
+// ═══════════════════════════════════════════════════════════════
+const CounterQr = () => {
+  const url = `${window.location.origin}/?instore=1`;
+  return (
+    <div className="counter-qr" style={{ background: '#FFFEFA', border: '1px solid rgba(92,58,33,0.1)', borderRadius: '16px', padding: '22px', marginBottom: '24px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', marginBottom: '6px' }}>
+        <h2 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '24px', color: '#2A1810', margin: 0, fontWeight: 500, display: 'flex', alignItems: 'center', gap: '9px' }}>
+          <QrCodeIcon size={18} /> Counter QR
+        </h2>
+        <button onClick={() => window.print()} data-compact className="no-print"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '8px 16px', borderRadius: '999px', border: '1.5px solid rgba(92,58,33,0.25)', background: 'transparent', color: '#5C3A21', fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.1em', textTransform: 'uppercase', cursor: 'pointer' }}>
+          <Printer size={13} /> Print
+        </button>
+      </div>
+      <p className="no-print" style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', color: '#5C3A21', margin: '0 0 18px 0' }}>
+        Print this and stand it on the counter. Customers scan it to order and pay on their own phone — no pickup time, and they earn a stamp.
+      </p>
+
+      {/* The printed card itself. */}
+      <div className="print-card" style={{ border: '1.5px dashed rgba(92,58,33,0.3)', borderRadius: '14px', padding: '26px 20px', textAlign: 'center', maxWidth: '360px', margin: '0 auto' }}>
+        <InfinityHeart size={40} color="#2A1810" />
+        <h3 style={{ fontFamily: '"Pinyon Script", cursive', fontSize: '38px', color: '#2A1810', margin: '4px 0 2px 0', fontWeight: 400, lineHeight: 1 }}>
+          earn a stamp
+        </h3>
+        <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '16px', color: '#5C3A21', margin: '0 0 18px 0' }}>
+          Scan, order & pay on your phone.<br />Your 11th drink is on us.
+        </p>
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <QrCode value={url} size={200} />
+        </div>
+        <p style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.1em', color: '#5C3A21', margin: '14px 0 0 0' }}>
+          {url.replace(/^https?:\/\//, '')}
+        </p>
+      </div>
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════
 // SALES ANALYTICS (owner only)
 // ───────────────────────────────────────────────────────────────
 // Everything here is derived from PAID orders only — pending rows are
@@ -2746,6 +3332,10 @@ const OwnerDashboard = ({ user, setPage }) => {
           </div>
         </div>
 
+        <InPersonCharge />
+
+        <CounterQr />
+
         <SalesAnalytics />
 
         {/* ── ORDERS BOARD ── */}
@@ -2884,7 +3474,17 @@ const Footer = ({ setPage }) => (
 // APP
 // ═══════════════════════════════════════════════════════
 export default function App() {
-  const [page, setPage] = useState('home');
+  // Deep links from the printed counter QR (?instore=1) and from a
+  // barista-created charge (?pay=<id>). Read once on load; the URL is then
+  // tidied so a refresh doesn't replay a charge that's already been paid.
+  const [entry] = useState(() => {
+    if (typeof window === 'undefined') return { pay: null, inStore: false };
+    const q = new URLSearchParams(window.location.search);
+    return { pay: q.get('pay'), inStore: q.get('instore') === '1' };
+  });
+
+  const [page, setPage] = useState(entry.pay ? 'pay' : (entry.inStore ? 'order' : 'home'));
+  const [inStoreMode, setInStoreMode] = useState(entry.inStore);
   const [cart, setCart] = useState([]);
   const [user, setUser] = useState(null);
   const [authOpen, setAuthOpen] = useState(false);
@@ -2910,6 +3510,14 @@ export default function App() {
 
   useEffect(() => { window.scrollTo({ top: 0, behavior: 'smooth' }); }, [page]);
 
+  // Drop ?pay=/?instore= from the address bar once we've read them, so a
+  // refresh or a shared link doesn't land someone back on a stale charge.
+  useEffect(() => {
+    if ((entry.pay || entry.inStore) && window.history?.replaceState) {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []); // eslint-disable-line
+
   const cartCount = cart.reduce((s, i) => s + i.qty, 0);
 
   // Re-order a saved favorite: add it straight to the cart and go to order page.
@@ -2933,6 +3541,10 @@ export default function App() {
   };
 
   // If a signed-out user tries to reach the dashboard, prompt sign-in.
+  // Navigating away from the scanned entry point drops in-store mode, so a
+  // customer browsing on their own device doesn't silently skip scheduling.
+  const navigate = (p) => { if (p !== 'order') setInStoreMode(false); setPage(p); };
+
   const goDashboard = () => {
     if (user) setPage('dashboard');
     else setAuthOpen(true);
@@ -2945,15 +3557,23 @@ export default function App() {
 
   return (
     <div style={{ background: '#FAF1E4', minHeight: '100vh', overflowX: 'hidden', maxWidth: '100%' }}>
-      <Nav page={page} setPage={setPage} cartCount={cartCount} user={user} onAccount={goDashboard} onSignIn={() => setAuthOpen(true)} />
+      <Nav page={page} setPage={navigate} cartCount={cartCount} user={user} onAccount={goDashboard} onSignIn={() => setAuthOpen(true)} />
       <div className="fade-in" key={page}>
         {page === 'home' && <HomePage setPage={setPage} onSignIn={() => setAuthOpen(true)} user={user} />}
-        {page === 'order' && <OrderPage cart={cart} setCart={setCart} user={user} onSignIn={() => setAuthOpen(true)} />}
+        {page === 'order' && <OrderPage cart={cart} setCart={setCart} user={user} onSignIn={() => setAuthOpen(true)} inStore={inStoreMode} />}
+        {page === 'pay' && (
+          <ScanToPayPage
+            orderId={entry.pay}
+            user={user}
+            onSignIn={() => setAuthOpen(true)}
+            onDone={() => { setPage(user ? 'dashboard' : 'order'); }}
+          />
+        )}
         {page === 'dashboard' && user && <DashboardPage user={user} setPage={setPage} onReorder={handleReorder} isAdmin={isAdmin} />}
         {page === 'dashboard' && !user && <HomePage setPage={setPage} onSignIn={() => setAuthOpen(true)} user={user} />}
         {page === 'owner' && <OwnerDashboard user={user} setPage={setPage} />}
       </div>
-      <Footer setPage={setPage} />
+      <Footer setPage={navigate} />
       {authOpen && <AuthModal onClose={() => setAuthOpen(false)} />}
     </div>
   );
