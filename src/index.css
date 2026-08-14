@@ -499,3 +499,19 @@ button {
   }
   .no-print { display: none !important; }
 }
+
+/* ─────────────────────────────────────────────────────
+   POS / kiosk: pad on the left, ticket on the right.
+   Stacks on phones so the till is still usable one-handed.
+   ───────────────────────────────────────────────────── */
+.pos-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  width: 100%;
+  min-width: 0;
+}
+@media (min-width: 900px) {
+  .pos-grid { grid-template-columns: 1fr 360px; }
+}
+.pos-grid > * { min-width: 0; }

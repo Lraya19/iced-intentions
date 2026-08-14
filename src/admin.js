@@ -10,13 +10,51 @@
 
 import { supabase, isSupabaseConfigured } from './supabase';
 
-// Is the signed-in user an owner/admin? Calls the SECURITY DEFINER
-// am_i_admin() which checks their email against the private allowlist.
+// Is the signed-in user staff at all (owner OR employee)? Calls the
+// SECURITY DEFINER am_i_admin(), which checks their email against the
+// private allowlist.
 export async function amIAdmin() {
   if (!isSupabaseConfigured) return false;
   const { data, error } = await supabase.rpc('am_i_admin');
   if (error) { console.warn('admin check failed:', error.message); return false; }
   return data === true;
+}
+
+// 'owner' | 'staff' | null.
+//
+// Owners see takings, analytics, the CSV export and the store kill switch.
+// Employees get the till and the order board and nothing else. Note the
+// honest limit of this: the split is enforced in the database only for
+// store_settings. Staff can read the orders table (they need the board),
+// and per-order totals are on it — so hiding the analytics panel from
+// them is a matter of not putting revenue in their face, not a hard
+// secrecy boundary. Don't hire someone you wouldn't trust with the board.
+export async function myRole() {
+  if (!isSupabaseConfigured) return null;
+  const { data, error } = await supabase.rpc('my_role');
+  if (error) { console.warn('role check failed:', error.message); return null; }
+  return data || null;
+}
+
+// ── POS ──
+
+// Settle a POS order as cash (staff only, enforced in the RPC).
+// Returns { total, change_due }.
+export async function settleCash(orderId, cashReceived) {
+  if (!isSupabaseConfigured) throw new Error('Not configured');
+  const { data, error } = await supabase.rpc('pos_settle_cash', {
+    p_id: orderId,
+    p_cash_received: cashReceived ?? null,
+  });
+  if (error) {
+    const m = error.message || '';
+    if (m.includes('ALREADY_PAID')) throw new Error('That order has already been settled.');
+    if (m.includes('NOT_STAFF')) throw new Error('You do not have permission to take payment.');
+    if (m.includes('ORDER_NOT_FOUND')) throw new Error('That order no longer exists.');
+    throw new Error(m || 'Could not settle the order.');
+  }
+  const row = Array.isArray(data) ? data[0] : data;
+  return row || null;
 }
 
 // ── Store settings (pause + sold-out) ──
@@ -78,7 +116,7 @@ export async function getOrdersForDate(dateStr) {
   if (!isSupabaseConfigured || !dateStr) return [];
   const { data, error } = await supabase
     .from('orders')
-    .select('id, pickup_date, pickup_time, pickup_time_display, customer, items, subtotal, discount, tax, total, payment_status, fulfilled, square_receipt_url, created_at')
+    .select('id, pickup_date, pickup_time, pickup_time_display, customer, items, subtotal, discount, tax, total, payment_status, payment_method, order_type, fulfilled, square_receipt_url, created_at')
     .eq('pickup_date', dateStr)
     .order('pickup_time', { ascending: true });
   if (error) { console.warn('orders read failed:', error.message); return []; }
@@ -92,7 +130,7 @@ export async function getOrdersInRange(startIso, endIso) {
   if (!isSupabaseConfigured || !startIso || !endIso) return [];
   const { data, error } = await supabase
     .from('orders')
-    .select('id, pickup_date, pickup_time, pickup_time_display, customer, items, subtotal, discount, tax, total, payment_status, fulfilled, square_payment_id, user_id, created_at')
+    .select('id, pickup_date, pickup_time, pickup_time_display, customer, items, subtotal, discount, tax, total, payment_status, payment_method, order_type, fulfilled, square_payment_id, user_id, created_at')
     .gte('pickup_date', startIso)
     .lte('pickup_date', endIso)
     .eq('payment_status', 'paid')
@@ -111,6 +149,20 @@ export async function setOrderFulfilled(orderId, fulfilled) {
     .eq('id', orderId);
   if (error) throw error;
   return true;
+}
+
+// Payment status of a single order. The POS and kiosk poll this while a
+// QR is on screen so the till flips to paid on its own, rather than staff
+// having to ask "did that go through?".
+export async function getOrderPaymentStatus(orderId) {
+  if (!isSupabaseConfigured || !orderId) return null;
+  const { data, error } = await supabase
+    .from('orders')
+    .select('payment_status')
+    .eq('id', orderId)
+    .maybeSingle();
+  if (error) { console.warn('status poll failed:', error.message); return null; }
+  return data?.payment_status ?? null;
 }
 
 // Live updates for the order board: fire `cb` on any orders change.

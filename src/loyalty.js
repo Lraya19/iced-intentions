@@ -50,6 +50,23 @@ export async function getMyOrders(userId, limit = 20) {
   return data || [];
 }
 
+// Claim the stamp for a counter sale that nobody owns yet — a cash order
+// has no account attached at the till, so without this the customer just
+// misses out. The RPC refuses anything already claimed or unpaid.
+export async function claimOrder(orderId) {
+  if (!isSupabaseConfigured || !orderId) throw new Error('Not available.');
+  const { error } = await supabase.rpc('claim_order', { p_id: orderId });
+  if (error) {
+    const m = error.message || '';
+    if (m.includes('ALREADY_CLAIMED')) throw new Error('That stamp has already been claimed.');
+    if (m.includes('NOT_PAID')) throw new Error('That order hasn\'t been paid yet.');
+    if (m.includes('NOT_SIGNED_IN')) throw new Error('Please sign in first.');
+    if (m.includes('ORDER_NOT_FOUND')) throw new Error('We couldn\'t find that order.');
+    throw new Error(m || 'Could not claim that stamp.');
+  }
+  return true;
+}
+
 // ── Favorites ──
 
 export async function getFavorites(userId) {

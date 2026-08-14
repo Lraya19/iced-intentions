@@ -1,12 +1,21 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import {
   Heart, ShoppingBag, Calendar, Clock, MapPin, Phone, Instagram,
   ChevronRight, ChevronLeft, X, Plus, Minus, Check, Sparkles,
   Coffee, Star, Loader2, Menu as MenuIcon, CreditCard, Lock,
   User, LogOut, Gift, Mail, Trash2, RotateCcw,
   LayoutDashboard, Power, PauseCircle, PlayCircle, CheckCircle2, Package, RefreshCw,
-  TrendingUp, Download, QrCode as QrCodeIcon, Printer,
+  TrendingUp, Download, QrCode as QrCodeIcon, Printer, Banknote,
 } from 'lucide-react';
+import { InfinityHeart, QrCode } from './ui';
+
+// Staff-only screens. Lazy so the customer bundle never carries the till.
+const PosPage = lazy(() => import('./pos').then(m => ({ default: m.PosPage })));
+const KioskPage = lazy(() => import('./pos').then(m => ({ default: m.KioskPage })));
+import {
+  MENU, ADD_ONS, SIZES, sizeLabel, TAX_RATE, round2,
+  formatLocalDate, toDisplayTime, parseLocalDate,
+} from './menu';
 import { subscribeToSlots, bookSlot, saveOrder, getPayableOrder } from './storage';
 import { sendOrderEmails } from './email';
 import {
@@ -15,10 +24,10 @@ import {
 import { sendLoginCode, verifyLoginCode, onAuthChange, signOut, displayName } from './auth';
 import {
   STAMPS_FOR_REWARD, getLoyaltyBalance, getLoyaltyHistory, getMyOrders,
-  getFavorites, addFavorite, removeFavorite,
+  getFavorites, addFavorite, removeFavorite, claimOrder,
 } from './loyalty';
 import {
-  amIAdmin, getStoreSettings, updateStoreSettings, subscribeToStoreSettings,
+  amIAdmin, myRole, getStoreSettings, updateStoreSettings, subscribeToStoreSettings,
   getOrdersForDate, setOrderFulfilled, subscribeToOrders, getOrdersInRange,
 } from './admin';
 
@@ -35,93 +44,9 @@ const BUSINESS = {
     friday: '6:00 – 9:00 AM',
   },
 };
-
-// ═══════════════════════════════════════════════════════
-// MENU
-// ═══════════════════════════════════════════════════════
-const MENU = {
-  matcha: {
-    title: 'Matcha',
-    note: 'All matchas made with oatmilk — except Verdí',
-    items: [
-      { id: 'matcha-verdi', photo: '/drinks/matcha-verdi.jpeg', name: 'Matcha Verdí', desc: 'Pure ceremonial-grade matcha with a kiss of vanilla', priceL: 10.50, priceBucket: 19.00, gradient: 'linear-gradient(180deg, #F5F0DC 0%, #B5C99A 50%, #6B8E4E 100%)' },
-      { id: 'matcha-besitos', photo: '/drinks/matcha-besitos.jpeg', name: 'Matcha Besitos', desc: 'Cookie butter matcha with a Biscoff crumble & soft top', priceL: 10.50, priceBucket: 19.00, gradient: 'linear-gradient(180deg, #E8C896 0%, #B5C99A 40%, #6B8E4E 100%)' },
-      { id: 'matcha-blanqui', photo: '/drinks/matcha-blanqui.jpeg', name: 'Matcha Blanquí', desc: 'Banana matcha — smooth, creamy & lightly sweet', priceL: 10.50, priceBucket: 19.00, gradient: 'linear-gradient(180deg, #FFF8E7 0%, #D4DEAB 50%, #8FA968 100%)' },
-      { id: 'matcha-rosa', photo: '/drinks/matcha-rosa.jpeg', name: 'Matcha Rosa', desc: 'Strawberry matcha — jade matcha over sweet strawberry', priceL: 10.50, priceBucket: 19.00, gradient: 'linear-gradient(180deg, #B5C99A 0%, #B5C99A 45%, #FFE4D6 60%, #C8345A 100%)' },
-    ],
-  },
-  lattes: {
-    title: 'Lattes',
-    items: [
-      { id: 'dulce-moonkiss', photo: '/drinks/dulce-moon-kiss.jpeg', name: 'Dulce Moon-Kiss', desc: 'Chocolate banana, topped with imported cinnamon from El Salvador', priceL: 8.00, priceBucket: 15.00, gradient: 'linear-gradient(180deg, #F5E6D3 0%, #C8A57A 50%, #6B4423 100%)' },
-      { id: 'mornenita-mornings', photo: '/drinks/mornenita-mornings.jpeg', name: 'Mornenita Mornings', desc: 'Cinnamon churro flavor with cinnamon-dusted foam', priceL: 8.00, priceBucket: 15.00, gradient: 'linear-gradient(180deg, #FFF1DC 0%, #E8A85C 40%, #8B5E2C 100%)' },
-      { id: 'nube-blush', photo: '/drinks/nube-blush.jpeg', name: 'Nube Blush', desc: 'Vanilla caramel with a silky vanilla foam', priceL: 8.00, priceBucket: 15.00, gradient: 'linear-gradient(180deg, #FFE4E1 0%, #E8A4B8 50%, #C18298 100%)' },
-      { id: 'besitos-brunette', photo: '/drinks/besitos-brunette.jpeg', name: 'Besitos Brunette', desc: 'Cookie butter latte with cookie butter cold foam', priceL: 8.00, priceBucket: 15.00, gradient: 'linear-gradient(180deg, #D4A574 0%, #8B5E2C 50%, #4A2C17 100%)' },
-    ],
-  },
-  refreshers: {
-    title: 'Refreshers',
-    sizeNote: '32 oz',
-    items: [
-      { id: 'sweet-cielo', photo: '/drinks/sweet-cielo.jpeg', name: 'Sweet Cielo', desc: 'Blue raspberry refresher', priceL: 8.00, priceBucket: 8.00, singleSize: true, gradient: 'linear-gradient(180deg, #CDEBFF 0%, #6FB7E8 50%, #2E7FC2 100%)' },
-      { id: 'sunkissed-cielo', photo: '/drinks/sunkissed-cielo.jpeg', name: 'SunKissed Cielo', desc: 'Mango dragonfruit refresher', priceL: 8.00, priceBucket: 8.00, singleSize: true, gradient: 'linear-gradient(180deg, #FFD8A8 0%, #E86A9E 55%, #9C2B8A 100%)' },
-      { id: 'coquetta-crush', photo: '/drinks/coquetta-crush.jpeg', name: 'Coquetta Crush', desc: 'Strawberry refresher', priceL: 8.00, priceBucket: 8.00, singleSize: true, gradient: 'linear-gradient(180deg, #FFF0F0 0%, #FFB8C8 50%, #E8557A 100%)' },
-      { id: 'summer-chula', photo: '/drinks/summer-chula.jpeg', name: 'Summer Chula', desc: 'Mango with a chamoy rim', priceL: 8.00, priceBucket: 8.00, singleSize: true, gradient: 'linear-gradient(180deg, #FFC98A 0%, #F0803C 45%, #B5322E 100%)' },
-    ],
-  },
-  energy: {
-    title: 'Energy Drinks',
-    note: 'All energy drinks are RedBull-based',
-    items: [
-      { id: 'paraiso-fuse', photo: '/drinks/paraiso-fuse.jpeg', name: 'Paraíso Fuse', desc: 'Tropical RedBull refresher', priceL: 8.00, priceBucket: 12.00, gradient: 'linear-gradient(180deg, #FFEBC4 0%, #FFD17A 50%, #FFA630 100%)' },
-      { id: 'cremita-fuse', photo: '/drinks/cremita-fuse.jpeg', name: 'Cremita Fuse', desc: 'Piña colada RedBull refresher', priceL: 8.00, priceBucket: 12.00, gradient: 'linear-gradient(180deg, #FFF5E1 0%, #F5DDB3 50%, #C9A86A 100%)' },
-      { id: 'azulita-fuse', photo: '/drinks/azulita-fuse.jpeg', name: 'Azulita Fuse', desc: 'Blue raspberry RedBull refresher', priceL: 8.00, priceBucket: 12.00, gradient: 'linear-gradient(180deg, #B8F0E8 0%, #5DD4C5 50%, #2BA89A 100%)' },
-      { id: 'verde-fuse', photo: '/drinks/verde-fuse.jpeg', name: 'Verde Fuse', desc: 'Green apple RedBull refresher', priceL: 8.00, priceBucket: 12.00, gradient: 'linear-gradient(180deg, #DEF5C9 0%, #95D478 50%, #4A9B2D 100%)' },
-    ],
-  },
-};
-
-const ADD_ONS = [
-  { id: 'oatmilk', name: 'Oatmilk', price: 0.75 },
-  { id: 'extra-shot', name: 'Extra Shot', price: 0.75 },
-  { id: 'chamoy', name: 'Chamoy', price: 0.75 },
-  { id: 'extra-matcha', name: 'Extra Matcha', price: 1.00 },
-];
-
-const SIZES = [
-  { id: 'L', label: 'Large (24 oz)' },
-  { id: 'BUCKET', label: 'Bucket (32 oz)' },
-];
-
-// Sales tax — Bakersfield, CA (7.25% state + 1.00% district).
-// Applied to the POST-discount amount: a loyalty reward is a
-// retailer-funded discount, so it reduces taxable gross receipts.
-// These figures are for DISPLAY ONLY — process-payment recomputes the
-// authoritative tax and total server-side. Must match TAX_RATE there.
-const TAX_RATE = 0.0825;
-const round2 = (n) => Math.round(n * 100) / 100;
-
-// Look up a drink by id + a friendly size label (single-size drinks show "32 oz").
-const DRINK_BY_ID = {};
-Object.values(MENU).forEach(c => c.items.forEach(d => { DRINK_BY_ID[d.id] = d; }));
-const sizeLabel = (drinkId, size) => {
-  const d = DRINK_BY_ID[drinkId];
-  if (d && d.singleSize) return '32 oz';
-  return size === 'L' ? 'Large' : 'Bucket';
-};
-
 // ═══════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════
-
-// Returns YYYY-MM-DD in LOCAL time (not UTC).
-// Using toISOString() would shift the date in evening hours for non-UTC zones.
-const formatLocalDate = (d) => {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-};
 
 // ── PICKUP SCHEDULE ────────────────────────────────────
 // Only these weekdays are open, each with its own hours. 15-min slots,
@@ -131,14 +56,6 @@ const SLOT_CAPACITY = 2;
 const PICKUP_SCHEDULE = {
   3: { start: '06:00', end: '09:00' }, // Wednesday  6:00am – 9:00am
   5: { start: '06:00', end: '09:00' }, // Friday     6:00am – 9:00am
-};
-
-const toDisplayTime = (h, m) => `${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
-
-// Parse a YYYY-MM-DD string into a LOCAL Date (no timezone shift).
-const parseLocalDate = (iso) => {
-  const [y, m, d] = iso.split('-').map(Number);
-  return new Date(y, m - 1, d);
 };
 
 // Time slots for a given pickup date (based on that day's schedule).
@@ -226,23 +143,6 @@ const getNextSevenDays = () => {
 // ═══════════════════════════════════════════════════════
 // VISUAL COMPONENTS
 // ═══════════════════════════════════════════════════════
-const InfinityHeart = ({ size = 40, color = '#2A1810' }) => (
-  <svg width={size} height={size * 0.65} viewBox="0 0 100 65" xmlns="http://www.w3.org/2000/svg">
-    <path
-      d="M 50 32 C 35 5, 5 15, 15 32 C 25 50, 50 35, 50 50 C 50 35, 75 50, 85 32 C 95 15, 65 5, 50 32 Z"
-      fill="none"
-      stroke={color}
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-    <path
-      d="M 50 47 L 47 50 Q 44 53, 47 56 Q 50 59, 50 62 Q 50 59, 53 56 Q 56 53, 53 50 Z"
-      fill={color}
-    />
-  </svg>
-);
-
 const Ornament = ({ width = 200, color = '#5C3A21' }) => (
   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width, margin: '0 auto' }}>
     <span style={{ width: '8px', height: '8px', borderRadius: '50%', border: `1.5px solid ${color}`, flexShrink: 0 }} />
@@ -807,59 +707,6 @@ const CheckoutInput = ({ label, value, onChange, placeholder, type = 'text' }) =
     />
   </div>
 );
-
-// ═══════════════════════════════════════════════════════
-// QR CODE
-// ───────────────────────────────────────────────────────
-// The encoder is ~50KB and only the owner ever needs it, so it's loaded
-// on demand rather than shipped to every customer.
-// ═══════════════════════════════════════════════════════
-const QrCode = ({ value, size = 220, label }) => {
-  const [dataUrl, setDataUrl] = useState('');
-  const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    let alive = true;
-    setDataUrl(''); setFailed(false);
-    (async () => {
-      try {
-        const QR = (await import('qrcode')).default;
-        const url = await QR.toDataURL(value, {
-          width: size * 2, margin: 1, errorCorrectionLevel: 'M',
-          color: { dark: '#2A1810', light: '#FFFEFA' },
-        });
-        if (alive) setDataUrl(url);
-      } catch (err) {
-        console.warn('QR generation failed:', err);
-        if (alive) setFailed(true);
-      }
-    })();
-    return () => { alive = false; };
-  }, [value, size]);
-
-  if (failed) {
-    return (
-      <p style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', color: '#A83A56', wordBreak: 'break-all' }}>
-        Couldn't draw the QR code. Use this link instead: {value}
-      </p>
-    );
-  }
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
-      <div style={{ width: size, height: size, background: '#FFFEFA', borderRadius: '12px', padding: '10px', boxShadow: '0 2px 12px rgba(42,24,16,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        {dataUrl
-          ? <img src={dataUrl} alt={label || 'QR code'} style={{ width: '100%', height: '100%', display: 'block' }} />
-          : <Loader2 size={22} className="spin" color="#5C3A21" />}
-      </div>
-      {label && (
-        <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.12em', textTransform: 'uppercase', color: '#5C3A21', textAlign: 'center' }}>
-          {label}
-        </span>
-      )}
-    </div>
-  );
-};
 
 // ═══════════════════════════════════════════════════════
 // DRINK CUSTOMIZER MODAL
@@ -1714,6 +1561,83 @@ const InStoreLanding = ({ user, onSignIn, onContinue }) => (
 );
 
 // ═══════════════════════════════════════════════════════
+// CLAIM A STAMP  (reached by ?claim=<orderId>)
+// ───────────────────────────────────────────────────────
+// A cash sale at the till has no account attached, so the customer would
+// otherwise get nothing toward their free drink. Staff show this QR after
+// taking the money; they sign in and the stamp attaches to the order.
+// ═══════════════════════════════════════════════════════
+const ClaimStampPage = ({ orderId, user, onSignIn, onDone }) => {
+  const [status, setStatus] = useState('idle'); // idle | working | done | error
+  const [error, setError] = useState('');
+  const tried = useRef(false);
+
+  // Claim as soon as they're signed in — one fewer tap at the counter.
+  useEffect(() => {
+    if (!user || !orderId || tried.current) return;
+    tried.current = true;
+    setStatus('working');
+    claimOrder(orderId)
+      .then(() => setStatus('done'))
+      .catch(err => { setError(err.message || 'Could not claim that stamp.'); setStatus('error'); });
+  }, [user, orderId]);
+
+  return (
+    <PayShell>
+      <div style={{ textAlign: 'center', padding: '26px 0' }}>
+        <InfinityHeart size={40} color="#2A1810" />
+
+        {status === 'done' ? (
+          <>
+            <div style={{ display: 'inline-flex', width: '74px', height: '74px', borderRadius: '50%', background: '#E8A4B8', alignItems: 'center', justifyContent: 'center', margin: '16px 0' }}>
+              <Check size={34} color="#FFFEFA" />
+            </div>
+            <h1 style={{ fontFamily: '"Pinyon Script", cursive', fontSize: '54px', color: '#2A1810', margin: '0 0 6px 0', fontWeight: 400, lineHeight: 1 }}>
+              stamp added
+            </h1>
+            <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '18px', color: '#5C3A21', margin: '0 0 26px 0' }}>
+              That one's on your card. Your 11th drink is on us.
+            </p>
+            <button onClick={onDone}
+              style={{ background: '#2A1810', color: '#FAF1E4', padding: '14px 30px', borderRadius: '999px', border: 'none', fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>
+              View my card
+            </button>
+          </>
+        ) : status === 'error' ? (
+          <>
+            <h1 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '26px', color: '#2A1810', margin: '16px 0 8px 0', fontWeight: 500 }}>
+              Couldn't add that stamp
+            </h1>
+            <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '16px', color: '#5C3A21', margin: '0 0 24px 0' }}>
+              {error}
+            </p>
+            <button onClick={onDone}
+              style={{ background: '#2A1810', color: '#FAF1E4', padding: '13px 28px', borderRadius: '999px', border: 'none', fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>
+              Go to the menu
+            </button>
+          </>
+        ) : !user ? (
+          <>
+            <h1 style={{ fontFamily: '"Pinyon Script", cursive', fontSize: '52px', color: '#2A1810', margin: '8px 0 4px 0', fontWeight: 400, lineHeight: 1 }}>
+              claim your stamp
+            </h1>
+            <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '18px', color: '#5C3A21', margin: '0 0 26px 0', lineHeight: 1.5 }}>
+              Sign in and we'll add this drink to your card — one code by email, no password.
+            </p>
+            <button onClick={onSignIn}
+              style={{ background: '#2A1810', color: '#FAF1E4', padding: '16px 34px', borderRadius: '999px', border: 'none', fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '9px' }}>
+              <User size={15} /> Sign in / Join
+            </button>
+          </>
+        ) : (
+          <div style={{ padding: '40px 0' }}><Loader2 size={26} className="spin" color="#5C3A21" /></div>
+        )}
+      </div>
+    </PayShell>
+  );
+};
+
+// ═══════════════════════════════════════════════════════
 // SCAN TO PAY  (reached by ?pay=<orderId>)
 // ───────────────────────────────────────────────────────
 // The barista has already taken the order at the counter and built the
@@ -1779,7 +1703,7 @@ const ScanToPayPage = ({ orderId, user, onSignIn, onDone }) => {
   useEffect(() => {
     let cancelled = false;
     let localCard = null;
-    if (!order || !user || payUnavailable || cardMounted.current) return;
+    if (!order || payUnavailable || cardMounted.current) return;
     (async () => {
       try {
         const { card } = await initSquarePayments('si-scan-card');
@@ -1797,10 +1721,9 @@ const ScanToPayPage = ({ orderId, user, onSignIn, onDone }) => {
       cancelled = true;
       if (localCard) { cardMounted.current = false; try { localCard.destroy(); } catch { /* noop */ } }
     };
-  }, [order, user, payUnavailable]);
+  }, [order, payUnavailable]);
 
   const pay = async () => {
-    if (!user) { onSignIn(); return; }
     if (!isFree && !cardObj) { setError('Payment form is still loading. One moment...'); return; }
     setSubmitting(true); setError('');
     try {
@@ -1810,7 +1733,7 @@ const ScanToPayPage = ({ orderId, user, onSignIn, onDone }) => {
         orderId,
         redeem: (canRedeem && redeemOn),
         items: items.map(i => ({ drinkId: i.drinkId, size: i.size, qty: i.qty, addOns: i.addOns || [] })),
-        buyerEmail: user.email,
+        buyerEmail: user?.email,
         note: `Iced Intentions — in-store ${orderId}`,
       });
       setReceipt({
@@ -1919,22 +1842,29 @@ const ScanToPayPage = ({ orderId, user, onSignIn, onDone }) => {
         </div>
       </div>
 
-      {!user ? (
-        /* Sign-in is the whole point: a stamp has to attach to an account. */
-        <div style={{ background: 'linear-gradient(135deg, #2A1810, #5C3A21)', borderRadius: '14px', padding: '22px', textAlign: 'center' }}>
-          <Gift size={24} color="#E8A4B8" />
-          <h2 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '21px', color: '#FAF1E4', margin: '10px 0 6px 0', fontWeight: 600, fontStyle: 'italic' }}>
-            Sign in to collect your stamp
-          </h2>
-          <p style={{ fontFamily: '"Outfit", sans-serif', fontSize: '13px', color: 'rgba(250,241,228,0.85)', margin: '0 0 18px 0', lineHeight: 1.5 }}>
-            One quick code by email — then pay here and your 11th drink gets closer.
-          </p>
+      {/* Signing in is what earns the stamp — but it must never gate the
+          payment itself. Someone who can't be bothered still gets a drink;
+          they just forgo the stamp. */}
+      {!user && (
+        <div style={{ background: 'linear-gradient(135deg, #2A1810, #5C3A21)', borderRadius: '14px', padding: '18px 20px', marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '14px' }}>
+          <Gift size={22} color="#E8A4B8" style={{ flexShrink: 0 }} />
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '17px', fontStyle: 'italic', fontWeight: 600, color: '#FAF1E4' }}>
+              Sign in to collect your stamp
+            </div>
+            <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11.5px', color: 'rgba(250,241,228,0.8)', marginTop: '1px' }}>
+              One code by email. Your 11th drink is on us.
+            </div>
+          </div>
           <button onClick={onSignIn}
-            style={{ background: '#E8A4B8', color: '#2A1810', padding: '14px 30px', borderRadius: '999px', border: 'none', fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 600, cursor: 'pointer' }}>
-            Sign in / Join
+            style={{ flexShrink: 0, background: '#E8A4B8', color: '#2A1810', border: 'none', borderRadius: '999px', padding: '11px 18px', fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 700, cursor: 'pointer' }}>
+            Sign in
           </button>
         </div>
-      ) : payUnavailable ? (
+      )}
+
+      {payUnavailable ? (
+
         <div style={{ background: 'rgba(232,85,122,0.08)', border: '1px solid rgba(232,85,122,0.3)', borderRadius: '8px', padding: '16px' }}>
           <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '15px', color: '#2A1810', margin: 0 }}>
             Card payments aren't available right now — please pay at the counter. Sorry about that. 🤍
@@ -3086,6 +3016,12 @@ const SalesAnalytics = () => {
     const gross = orders.reduce((s, o) => s + (Number(o.total) || 0), 0);
     const tax = orders.reduce((s, o) => s + (Number(o.tax) || 0), 0);
     const discounts = orders.reduce((s, o) => s + (Number(o.discount) || 0), 0);
+    // Split by tender: cash is what should physically be in the drawer,
+    // card is what Square will actually deposit. Reconciling the two is
+    // the whole job at the end of a shift.
+    const cash = orders.filter(o => o.payment_method === 'cash')
+      .reduce((s, o) => s + (Number(o.total) || 0), 0);
+    const card = gross - cash;
 
     // Units sold per drink, and revenue by pickup slot.
     const byDrink = {};
@@ -3111,6 +3047,8 @@ const SalesAnalytics = () => {
     return {
       gross,
       tax,
+      cash,
+      card,
       net: gross - tax,
       discounts,
       count: orders.length,
@@ -3125,7 +3063,7 @@ const SalesAnalytics = () => {
   const downloadCsv = () => {
     const header = [
       'Order ID', 'Pickup date', 'Pickup time', 'Customer', 'Email', 'Phone',
-      'Items', 'Subtotal', 'Discount', 'Tax', 'Total', 'Square payment ID', 'Placed at',
+      'Items', 'Subtotal', 'Discount', 'Tax', 'Total', 'Tender', 'Channel', 'Square payment ID', 'Placed at',
     ];
     const rows = orders.map(o => [
       o.id, o.pickup_date, o.pickup_time_display || o.pickup_time,
@@ -3135,6 +3073,7 @@ const SalesAnalytics = () => {
       Number(o.discount ?? 0).toFixed(2),
       Number(o.tax ?? 0).toFixed(2),
       Number(o.total ?? 0).toFixed(2),
+      o.payment_method || 'card', o.order_type || 'pickup',
       o.square_payment_id, o.created_at,
     ]);
     const csv = [header, ...rows].map(r => r.map(csvCell).join(',')).join('\r\n');
@@ -3181,6 +3120,8 @@ const SalesAnalytics = () => {
             <Money label="Total taken" value={`$${stats.gross.toFixed(2)}`} />
             <Money label="Orders" value={stats.count} />
             <Money label="Avg order" value={`$${stats.avg.toFixed(2)}`} />
+            <Money label="Cash taken" value={`$${stats.cash.toFixed(2)}`} />
+            <Money label="Card taken" value={`$${stats.card.toFixed(2)}`} />
           </div>
 
           <div className="grid-2-md" style={{ gap: '24px', marginBottom: '18px' }}>
@@ -3208,7 +3149,8 @@ const SalesAnalytics = () => {
 // ═══════════════════════════════════════════════════════════════
 // OWNER DASHBOARD (admin only)
 // ═══════════════════════════════════════════════════════════════
-const OwnerDashboard = ({ user, setPage }) => {
+const OwnerDashboard = ({ user, setPage, role }) => {
+  const isOwner = role === 'owner';
   const [checking, setChecking] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [dateIso, setDateIso] = useState(formatLocalDate(new Date()));
@@ -3332,7 +3274,7 @@ const OwnerDashboard = ({ user, setPage }) => {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px', marginBottom: '8px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <LayoutDashboard size={20} color="#2A1810" />
-            <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.3em', textTransform: 'uppercase', color: '#5C3A21' }}>Owner Dashboard</span>
+            <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.3em', textTransform: 'uppercase', color: '#5C3A21' }}>{isOwner ? 'Owner Dashboard' : 'Staff'}</span>
           </div>
           <button onClick={() => refreshOrders(dateIso)} data-compact style={{ display: 'inline-flex', alignItems: 'center', gap: '7px', background: 'transparent', border: '1.5px solid rgba(92,58,33,0.25)', borderRadius: '999px', padding: '8px 16px', fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5C3A21', cursor: 'pointer' }}>
             <RefreshCw size={13} /> Refresh
@@ -3350,6 +3292,7 @@ const OwnerDashboard = ({ user, setPage }) => {
           </span>
         </div>
 
+        {isOwner && <>
         {/* ── STORE CONTROLS ── */}
         <div style={{ background: '#FFFEFA', border: '1px solid rgba(92,58,33,0.1)', borderRadius: '16px', padding: '22px', marginBottom: '24px' }}>
           <h2 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '24px', color: '#2A1810', margin: '0 0 18px 0', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '9px' }}>
@@ -3411,11 +3354,25 @@ const OwnerDashboard = ({ user, setPage }) => {
           </div>
         </div>
 
+        <button onClick={() => setPage('pos')}
+          style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', background: '#2A1810', color: '#FAF1E4', border: 'none', borderRadius: '16px', padding: '20px 22px', cursor: 'pointer', marginBottom: '24px' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '13px' }}>
+            <Banknote size={22} />
+            <span style={{ textAlign: 'left' }}>
+              <span style={{ display: 'block', fontFamily: '"Cormorant Garamond", serif', fontSize: '22px', fontStyle: 'italic', fontWeight: 600 }}>Open the till</span>
+              <span style={{ display: 'block', fontFamily: '"Outfit", sans-serif', fontSize: '11.5px', opacity: 0.8 }}>Ring up a sale — cash or card</span>
+            </span>
+          </span>
+          <ChevronRight size={19} />
+        </button>
+
         <InPersonCharge />
 
-        <CounterQr />
+        {isOwner && <CounterQr />}
 
-        <SalesAnalytics />
+        {isOwner && <SalesAnalytics />}
+
+        </>}
 
         {/* ── ORDERS BOARD ── */}
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '14px' }}>
@@ -3472,8 +3429,15 @@ const OwnerDashboard = ({ user, setPage }) => {
                           'paid' is an abandoned/failed checkout — flag it
                           loudly so nobody makes a drink for free. */}
                       <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '9px', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, padding: '3px 9px', borderRadius: '999px', background: o.payment_status === 'paid' ? 'rgba(61,122,79,0.15)' : 'rgba(168,58,86,0.15)', color: o.payment_status === 'paid' ? '#3D7A4F' : '#A83A56' }}>
-                        {o.payment_status === 'paid' ? 'Paid' : 'Unpaid — do not make'}
+                        {o.payment_status === 'paid'
+                          ? (o.payment_method === 'cash' ? 'Paid · Cash' : 'Paid · Card')
+                          : 'Unpaid — do not make'}
                       </span>
+                      {(o.order_type === 'pos' || o.order_type === 'kiosk') && (
+                        <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '9px', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, padding: '3px 9px', borderRadius: '999px', background: 'rgba(92,58,33,0.1)', color: '#5C3A21' }}>
+                          {o.order_type === 'kiosk' ? 'Kiosk' : 'Counter'}
+                        </span>
+                      )}
                     </div>
                     <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '13px', color: '#3D2817', marginTop: '7px', lineHeight: 1.5 }}>
                       {itemsSummary(o.items)}
@@ -3559,16 +3523,31 @@ export default function App() {
   const [entry] = useState(() => {
     if (typeof window === 'undefined') return { pay: null, inStore: false };
     const q = new URLSearchParams(window.location.search);
-    return { pay: q.get('pay'), inStore: q.get('instore') === '1' };
+    return {
+      pay: q.get('pay'),
+      claim: q.get('claim'),
+      inStore: q.get('instore') === '1',
+      pos: q.get('pos') === '1',
+      kiosk: q.get('kiosk') === '1',
+    };
   });
 
-  const [page, setPage] = useState(entry.pay ? 'pay' : (entry.inStore ? 'instore' : 'home'));
+  const [page, setPage] = useState(
+    entry.kiosk ? 'kiosk'
+      : entry.pos ? 'pos'
+      : entry.claim ? 'claim'
+      : entry.pay ? 'pay'
+      : entry.inStore ? 'instore'
+      : 'home',
+  );
   const [inStoreMode, setInStoreMode] = useState(entry.inStore);
   const [cart, setCart] = useState([]);
   const [user, setUser] = useState(null);
   const [authOpen, setAuthOpen] = useState(false);
   const [pendingReorder, setPendingReorder] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [role, setRole] = useState(null); // 'owner' | 'staff' | null
+  const [kioskPayId, setKioskPayId] = useState(null);
 
   // Track auth state across the whole app.
   useEffect(() => {
@@ -3581,8 +3560,10 @@ export default function App() {
     let alive = true;
     if (user) {
       amIAdmin().then(ok => { if (alive) setIsAdmin(ok); });
+      myRole().then(r => { if (alive) setRole(r); });
     } else {
       setIsAdmin(false);
+      setRole(null);
     }
     return () => { alive = false; };
   }, [user]);
@@ -3592,7 +3573,7 @@ export default function App() {
   // Drop ?pay=/?instore= from the address bar once we've read them, so a
   // refresh or a shared link doesn't land someone back on a stale charge.
   useEffect(() => {
-    if ((entry.pay || entry.inStore) && window.history?.replaceState) {
+    if ((entry.pay || entry.claim || entry.inStore || entry.pos || entry.kiosk) && window.history?.replaceState) {
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, []); // eslint-disable-line
@@ -3640,6 +3621,61 @@ export default function App() {
     if (user && page === 'instore') setPage('order');
   }, [user, page]);
 
+  // ── Full-screen staff/kiosk surfaces ──────────────────────────
+  // These deliberately render WITHOUT the storefront nav and footer: the
+  // kiosk sits unattended on a tablet and must offer no route into an
+  // account or the dashboard, and the till wants the whole screen.
+  const Busy = (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#FAF1E4' }}>
+      <Loader2 size={26} className="spin" color="#5C3A21" />
+    </div>
+  );
+
+  if (page === 'kiosk') {
+    return (
+      <Suspense fallback={Busy}>
+        <KioskPage onPayOnScreen={(id) => { setKioskPayId(id); setPage('pay'); }} />
+      </Suspense>
+    );
+  }
+
+  if (page === 'pos') {
+    if (!user) {
+      return (
+        <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px', background: '#FAF1E4', padding: '40px' }}>
+          <Lock size={26} color="#5C3A21" />
+          <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '19px', color: '#5C3A21', margin: 0 }}>
+            Please sign in to open the till.
+          </p>
+          <button onClick={() => setAuthOpen(true)}
+            style={{ background: '#2A1810', color: '#FAF1E4', padding: '14px 30px', borderRadius: '999px', border: 'none', fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>
+            Sign in
+          </button>
+          {authOpen && <AuthModal onClose={() => setAuthOpen(false)} />}
+        </div>
+      );
+    }
+    if (!isAdmin) {
+      return (
+        <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '14px', background: '#FAF1E4', padding: '40px', textAlign: 'center' }}>
+          <Lock size={26} color="#5C3A21" />
+          <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '19px', color: '#5C3A21', margin: 0 }}>
+            This till is for Iced Intentions staff.
+          </p>
+          <button onClick={() => setPage('home')}
+            style={{ background: '#2A1810', color: '#FAF1E4', padding: '12px 26px', borderRadius: '999px', border: 'none', fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.14em', textTransform: 'uppercase', cursor: 'pointer' }}>
+            Back home
+          </button>
+        </div>
+      );
+    }
+    return (
+      <Suspense fallback={Busy}>
+        <PosPage role={role} onExit={() => setPage(role === 'owner' ? 'owner' : 'home')} />
+      </Suspense>
+    );
+  }
+
   return (
     <div style={{ background: '#FAF1E4', minHeight: '100vh', overflowX: 'hidden', maxWidth: '100%' }}>
       <Nav page={page} setPage={navigate} cartCount={cartCount} user={user} onAccount={goDashboard} onSignIn={() => setAuthOpen(true)} />
@@ -3653,9 +3689,17 @@ export default function App() {
             onContinue={() => setPage('order')}
           />
         )}
+        {page === 'claim' && (
+          <ClaimStampPage
+            orderId={entry.claim}
+            user={user}
+            onSignIn={() => setAuthOpen(true)}
+            onDone={() => setPage(user ? 'dashboard' : 'home')}
+          />
+        )}
         {page === 'pay' && (
           <ScanToPayPage
-            orderId={entry.pay}
+            orderId={kioskPayId || entry.pay}
             user={user}
             onSignIn={() => setAuthOpen(true)}
             onDone={() => { setPage(user ? 'dashboard' : 'order'); }}
@@ -3663,7 +3707,7 @@ export default function App() {
         )}
         {page === 'dashboard' && user && <DashboardPage user={user} setPage={setPage} onReorder={handleReorder} isAdmin={isAdmin} />}
         {page === 'dashboard' && !user && <HomePage setPage={setPage} onSignIn={() => setAuthOpen(true)} user={user} />}
-        {page === 'owner' && <OwnerDashboard user={user} setPage={setPage} />}
+        {page === 'owner' && <OwnerDashboard user={user} setPage={setPage} role={role} />}
       </div>
       <Footer setPage={navigate} />
       {authOpen && <AuthModal onClose={() => setAuthOpen(false)} />}
