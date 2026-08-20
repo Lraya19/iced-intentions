@@ -433,7 +433,7 @@ const HomePage = ({ setPage, onSignIn, user }) => {
             </div>
             {/* Center: Mornenita Mornings (hero) */}
             <div style={{ position: 'relative', zIndex: 2, width: 'clamp(170px, 30vw, 240px)', aspectRatio: '4 / 5', borderRadius: '20px', overflow: 'hidden', boxShadow: '0 24px 60px rgba(42,24,16,0.28)' }}>
-              <img src="/drinks/mornenita-mornings.jpeg" alt="Mornenita Mornings" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+              <img src="/drinks/mornenita-mornings-v2.jpeg" alt="Mornenita Mornings" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
             </div>
             {/* Back-right: Azulita Fuse */}
             <div style={{ position: 'absolute', bottom: '4%', right: '6%', transform: 'rotate(8deg)', width: 'clamp(120px, 20vw, 168px)', aspectRatio: '4 / 5', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 14px 36px rgba(42,24,16,0.18)', zIndex: 1 }}>
