@@ -373,7 +373,7 @@ const REVIEWS = [
 
 // A few real drink photos for the "follow along" gallery.
 const HOME_GALLERY = [
-  '/drinks/matcha-rosa.jpeg', '/drinks/coquetta-crush-v2.jpeg', '/drinks/azulita-fuse.jpeg',
+  '/drinks/matcha-rosa-v2.jpeg', '/drinks/coquetta-crush-v2.jpeg', '/drinks/azulita-fuse.jpeg',
   '/drinks/sunkissed-cielo-v2.jpeg', '/drinks/cremita-fuse.jpeg', '/drinks/verde-fuse.jpeg',
 ];
 
@@ -429,7 +429,7 @@ const HomePage = ({ setPage, onSignIn, user }) => {
           <div style={{ position: 'relative', display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '380px', marginTop: '20px' }}>
             {/* Back-left: Matcha Rosa */}
             <div style={{ position: 'absolute', top: '4%', left: '8%', transform: 'rotate(-7deg)', width: 'clamp(120px, 20vw, 168px)', aspectRatio: '4 / 5', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 14px 36px rgba(42,24,16,0.18)', zIndex: 1 }}>
-              <img src="/drinks/matcha-rosa.jpeg" alt="Matcha Rosa" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+              <img src="/drinks/matcha-rosa-v2.jpeg" alt="Matcha Rosa" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
             </div>
             {/* Center: Mornenita Mornings (hero) */}
             <div style={{ position: 'relative', zIndex: 2, width: 'clamp(170px, 30vw, 240px)', aspectRatio: '4 / 5', borderRadius: '20px', overflow: 'hidden', boxShadow: '0 24px 60px rgba(42,24,16,0.28)' }}>

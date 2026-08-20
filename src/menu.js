@@ -19,10 +19,10 @@ const MENU = {
     title: 'Matcha',
     note: 'All matchas made with oatmilk — except Verdí',
     items: [
-      { id: 'matcha-verdi', photo: '/drinks/matcha-verdi.jpeg', name: 'Matcha Verdí', desc: 'Pure ceremonial-grade matcha with a kiss of vanilla', priceL: 10.50, priceBucket: 19.00, gradient: 'linear-gradient(180deg, #F5F0DC 0%, #B5C99A 50%, #6B8E4E 100%)' },
-      { id: 'matcha-besitos', photo: '/drinks/matcha-besitos.jpeg', name: 'Matcha Besitos', desc: 'Cookie butter matcha with a Biscoff crumble & soft top', priceL: 10.50, priceBucket: 19.00, gradient: 'linear-gradient(180deg, #E8C896 0%, #B5C99A 40%, #6B8E4E 100%)' },
+      { id: 'matcha-verdi', photo: '/drinks/matcha-verdi-v2.jpeg', name: 'Matcha Verdí', desc: 'Pure ceremonial-grade matcha with a kiss of vanilla', priceL: 10.50, priceBucket: 19.00, gradient: 'linear-gradient(180deg, #F5F0DC 0%, #B5C99A 50%, #6B8E4E 100%)' },
+      { id: 'matcha-besitos', photo: '/drinks/matcha-besitos-v2.jpeg', name: 'Matcha Besitos', desc: 'Cookie butter matcha with a Biscoff crumble & soft top', priceL: 10.50, priceBucket: 19.00, gradient: 'linear-gradient(180deg, #E8C896 0%, #B5C99A 40%, #6B8E4E 100%)' },
       { id: 'matcha-blanqui', photo: '/drinks/matcha-blanqui-v2.jpeg', name: 'Matcha Blanquí', desc: 'Banana matcha — smooth, creamy & lightly sweet', priceL: 10.50, priceBucket: 19.00, gradient: 'linear-gradient(180deg, #FFF8E7 0%, #D4DEAB 50%, #8FA968 100%)' },
-      { id: 'matcha-rosa', photo: '/drinks/matcha-rosa.jpeg', name: 'Matcha Rosa', desc: 'Strawberry matcha — jade matcha over sweet strawberry', priceL: 10.50, priceBucket: 19.00, gradient: 'linear-gradient(180deg, #B5C99A 0%, #B5C99A 45%, #FFE4D6 60%, #C8345A 100%)' },
+      { id: 'matcha-rosa', photo: '/drinks/matcha-rosa-v2.jpeg', name: 'Matcha Rosa', desc: 'Strawberry matcha — jade matcha over sweet strawberry', priceL: 10.50, priceBucket: 19.00, gradient: 'linear-gradient(180deg, #B5C99A 0%, #B5C99A 45%, #FFE4D6 60%, #C8345A 100%)' },
     ],
   },
   lattes: {
