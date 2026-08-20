@@ -95,16 +95,17 @@ export async function initSquarePayments(cardContainerId) {
   return { payments, card };
 }
 
-// Sets up Apple Pay. Returns the applePay payment method or null if
-// unavailable (wrong device/browser, not verified, etc.). The button
-// is rendered by the caller; tokenization happens on click.
+// Sets up Apple Pay. Returns the applePay payment method, or null when it
+// isn't available — which is the normal case, not an error: Apple Pay only
+// exists in Safari on an Apple device with a card in Wallet, over HTTPS, on
+// a domain registered in the Square dashboard. Everywhere else this returns
+// null and the caller simply doesn't render the button.
 //
-// NOTE: Apple Pay is temporarily DISABLED until domain verification is
-// completed in Square. The card form works for everyone (including iPhone
-// users) in the meantime. To re-enable later, delete the line below.
+// The Web Payments SDK has no way to change the amount after the instance
+// exists, so the caller must destroy and re-create this whenever the total
+// moves. See destroyApplePay below.
 export async function initApplePay(payments, amount) {
-  return null; // ← Apple Pay disabled; remove this line to re-enable once verified
-  // eslint-disable-next-line no-unreachable
+  if (!payments || !Number.isFinite(amount) || amount <= 0) return null;
   try {
     const paymentRequest = payments.paymentRequest({
       countryCode: "US",
@@ -117,10 +118,18 @@ export async function initApplePay(payments, amount) {
     const applePay = await payments.applePay(paymentRequest);
     return applePay;
   } catch (err) {
-    // Apple Pay not available on this device/browser — that's fine.
+    // Not available on this device/browser, or the domain isn't registered.
+    // Either way it's a non-event — the card form covers everyone.
     console.log("Apple Pay unavailable:", err?.message || err);
     return null;
   }
+}
+
+// Tear down an ApplePay instance before building a new one for a changed
+// total. Wrapped because destroy() isn't guaranteed across SDK versions and
+// a failure here must never block checkout.
+export async function destroyApplePay(applePay) {
+  try { await applePay?.destroy?.(); } catch { /* noop */ }
 }
 
 // Tokenizes a payment method (card or applePay) into a one-time nonce.

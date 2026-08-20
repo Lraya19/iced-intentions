@@ -19,7 +19,7 @@ import {
 import { subscribeToSlots, bookSlot, saveOrder, getPayableOrder } from './storage';
 import { sendOrderEmails } from './email';
 import {
-  isSquareConfigured, initSquarePayments, initApplePay, tokenize, chargePayment,
+  isSquareConfigured, initSquarePayments, initApplePay, destroyApplePay, tokenize, chargePayment,
 } from './square';
 import { sendLoginCode, verifyLoginCode, onAuthChange, signOut, displayName } from './auth';
 import {
@@ -986,6 +986,7 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, inStore = false, onUpdate
   const [payUnavailable, setPayUnavailable] = useState(!squareOn);
   const [cardObj, setCardObj] = useState(null);
   const [applePayObj, setApplePayObj] = useState(null);
+  const [paymentsObj, setPaymentsObj] = useState(null);
   const cardMounted = useRef(false);
 
   // ── Loyalty redemption state ──
@@ -1101,6 +1102,31 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, inStore = false, onUpdate
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [squareOn]);
+
+  // ── Apple Pay ──
+  // The Web Payments SDK gives no way to change a payment request's amount
+  // once the instance exists, so the sheet would keep showing whatever the
+  // total was at mount — through quantity edits and reward toggles alike.
+  // Tear it down and rebuild on every change instead.
+  //
+  // Returns null on anything that isn't Safari on an Apple device with a
+  // registered domain, which is the common case and not an error: the button
+  // simply doesn't render and the card form covers everyone.
+  useEffect(() => {
+    if (!paymentsObj || effectiveTotal <= 0) { setApplePayObj(null); return; }
+    let cancelled = false;
+    let made = null;
+    (async () => {
+      const ap = await initApplePay(paymentsObj, effectiveTotal);
+      if (cancelled) { await destroyApplePay(ap); return; }
+      made = ap;
+      setApplePayObj(ap);
+    })();
+    return () => {
+      cancelled = true;
+      if (made) destroyApplePay(made);
+    };
+  }, [paymentsObj, effectiveTotal]);
 
   // A slot is full once it reaches capacity. booked_times stores a count
   // per time (older rows may store a name string — treat that as 1).
@@ -1830,6 +1856,8 @@ const ScanToPayPage = ({ orderId, user, onSignIn, onDone }) => {
   const [submitting, setSubmitting] = useState(false);
   const [cardReady, setCardReady] = useState(false);
   const [cardObj, setCardObj] = useState(null);
+  const [paymentsObj, setPaymentsObj] = useState(null);
+  const [applePayObj, setApplePayObj] = useState(null);
   const [payUnavailable, setPayUnavailable] = useState(!isSquareConfigured());
   const [loyaltyBalance, setLoyaltyBalance] = useState(0);
   const [redeemOn, setRedeemOn] = useState(false);
@@ -1873,11 +1901,12 @@ const ScanToPayPage = ({ orderId, user, onSignIn, onDone }) => {
     if (!order || payUnavailable || cardMounted.current) return;
     (async () => {
       try {
-        const { card } = await initSquarePayments('si-scan-card');
+        const { payments, card } = await initSquarePayments('si-scan-card');
         if (cancelled) { try { await card.destroy(); } catch { /* noop */ } return; }
         cardMounted.current = true;
         localCard = card;
         setCardObj(card);
+        setPaymentsObj(payments);
         setCardReady(true);
       } catch (err) {
         console.error('Square init failed:', err);
@@ -1890,11 +1919,27 @@ const ScanToPayPage = ({ orderId, user, onSignIn, onDone }) => {
     };
   }, [order, payUnavailable]);
 
-  const pay = async () => {
-    if (!isFree && !cardObj) { setError('Payment form is still loading. One moment...'); return; }
+  // Rebuilt whenever the amount moves, because the SDK can't update a
+  // payment request in place. Most valuable on this screen: the customer is
+  // already holding their phone at the counter.
+  useEffect(() => {
+    if (!paymentsObj || total <= 0) { setApplePayObj(null); return; }
+    let cancelled = false;
+    let made = null;
+    (async () => {
+      const ap = await initApplePay(paymentsObj, total);
+      if (cancelled) { await destroyApplePay(ap); return; }
+      made = ap;
+      setApplePayObj(ap);
+    })();
+    return () => { cancelled = true; if (made) destroyApplePay(made); };
+  }, [paymentsObj, total]);
+
+  const pay = async (method) => {
+    if (!isFree && !(method || cardObj)) { setError('Payment form is still loading. One moment...'); return; }
     setSubmitting(true); setError('');
     try {
-      const token = isFree ? null : await tokenize(cardObj);
+      const token = isFree ? null : await tokenize(method || cardObj);
       const result = await chargePayment({
         sourceId: token,
         orderId,
@@ -2054,6 +2099,20 @@ const ScanToPayPage = ({ orderId, user, onSignIn, onDone }) => {
             </button>
           )}
 
+          {applePayObj && !isFree && (
+            <div style={{ marginBottom: '14px' }}>
+              <button onClick={() => pay(applePayObj)} disabled={submitting} data-compact
+                aria-label="Pay with Apple Pay"
+                style={{ width: '100%', height: '50px', background: '#000', color: '#fff', border: 'none', borderRadius: '10px', cursor: submitting ? 'wait' : 'pointer', fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif', fontSize: '18px', fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
+                Pay with&nbsp;&#63743;&nbsp;Pay
+              </button>
+              <div style={{ textAlign: 'center', margin: '12px 0', position: 'relative' }}>
+                <span style={{ background: '#FAF1E4', padding: '0 12px', position: 'relative', zIndex: 1, fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5C3A21' }}>or pay by card</span>
+                <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: '1px', background: 'rgba(92, 58, 33, 0.18)' }} />
+              </div>
+            </div>
+          )}
+
           <div style={{ background: '#FFFEFA', border: '1px solid rgba(92,58,33,0.12)', borderRadius: '12px', padding: '18px', marginBottom: '14px', display: isFree ? 'none' : 'block' }}>
             <div id="si-scan-card" style={{ minHeight: '52px' }} />
             {!cardReady && (
@@ -2072,7 +2131,7 @@ const ScanToPayPage = ({ orderId, user, onSignIn, onDone }) => {
             </div>
           )}
 
-          <button onClick={pay} disabled={submitting || (!isFree && !cardReady)}
+          <button onClick={() => pay()} disabled={submitting || (!isFree && !cardReady)}
             style={{ width: '100%', background: '#2A1810', color: '#FAF1E4', padding: '17px', border: 'none', borderRadius: '999px', fontFamily: '"Outfit", sans-serif', fontSize: '13px', letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, cursor: (submitting || (!isFree && !cardReady)) ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', opacity: (!isFree && !cardReady) ? 0.6 : 1 }}>
             {submitting
               ? <><Loader2 size={16} className="spin" /> Processing...</>
