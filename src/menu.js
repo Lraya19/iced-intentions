@@ -17,6 +17,9 @@
 const MENU = {
   matcha: {
     title: 'Matcha',
+    // Extra matcha only — oatmilk is already in every one of these, and an
+    // espresso shot isn't something these are built for.
+    addOns: ['extra-matcha'],
     note: 'All matchas made with oatmilk — except Verdí',
     items: [
       { id: 'matcha-verdi', photo: '/drinks/matcha-verdi-v2.jpeg', name: 'Matcha Verdí', desc: 'Pure ceremonial-grade matcha with a kiss of vanilla', priceL: 10.50, priceBucket: 19.00, gradient: 'linear-gradient(180deg, #F5F0DC 0%, #B5C99A 50%, #6B8E4E 100%)' },
@@ -27,6 +30,8 @@ const MENU = {
   },
   lattes: {
     title: 'Lattes',
+    // Coffee modifiers only. Extra matcha and chamoy don't belong in a latte.
+    addOns: ['oatmilk', 'extra-shot'],
     items: [
       { id: 'dulce-moonkiss', photo: '/drinks/dulce-moon-kiss-v3.jpeg', name: 'Dulce Moon-Kiss', desc: 'Chocolate banana, topped with imported cinnamon from El Salvador', priceL: 8.00, priceBucket: 15.00, gradient: 'linear-gradient(180deg, #F5E6D3 0%, #C8A57A 50%, #6B4423 100%)' },
       { id: 'mornenita-mornings', photo: '/drinks/mornenita-mornings-v3.jpeg', name: 'Mornenita Mornings', desc: 'Cinnamon churro flavor with cinnamon-dusted foam', priceL: 8.00, priceBucket: 15.00, gradient: 'linear-gradient(180deg, #FFF1DC 0%, #E8A85C 40%, #8B5E2C 100%)' },
@@ -49,6 +54,8 @@ const MENU = {
   },
   energy: {
     title: 'Energy Drinks',
+    // RedBull refreshers — every add-on is a coffee or matcha modifier.
+    addOns: [],
     note: 'All energy drinks are RedBull-based',
     items: [
       { id: 'paraiso-fuse', photo: '/drinks/paraiso-fuse-v2.jpeg', name: 'Paraíso Fuse', desc: 'Tropical RedBull refresher', priceL: 8.00, priceBucket: 12.00, gradient: 'linear-gradient(180deg, #FFEBC4 0%, #FFD17A 50%, #FFA630 100%)' },

@@ -614,7 +614,7 @@ const HomePage = ({ setPage, onSignIn, user, onOrderDrink }) => {
               ))}
             </div>
             <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '13px', textAlign: 'center', opacity: 0.7, marginTop: '24px' }}>
-              * All caffeine drinks come with soft top · add-ons on coffee & matcha *
+              * All caffeine drinks come with soft top · oatmilk & extra shot on lattes, extra matcha on matcha *
             </p>
           </div>
         </div>
