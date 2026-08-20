@@ -13,7 +13,7 @@ import { InfinityHeart, QrCode } from './ui';
 const PosPage = lazy(() => import('./pos').then(m => ({ default: m.PosPage })));
 const KioskPage = lazy(() => import('./pos').then(m => ({ default: m.KioskPage })));
 import {
-  MENU, ADD_ONS, SIZES, sizeLabel, TAX_RATE, round2,
+  MENU, ADD_ONS, SIZES, sizeLabel, addOnsFor, TAX_RATE, round2,
   formatLocalDate, toDisplayTime, parseLocalDate,
 } from './menu';
 import { subscribeToSlots, bookSlot, saveOrder, getPayableOrder } from './storage';
@@ -614,7 +614,7 @@ const HomePage = ({ setPage, onSignIn, user, onOrderDrink }) => {
               ))}
             </div>
             <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '13px', textAlign: 'center', opacity: 0.7, marginTop: '24px' }}>
-              * All caffeine drinks come with soft top *
+              * All caffeine drinks come with soft top · add-ons on coffee & matcha *
             </p>
           </div>
         </div>
@@ -807,6 +807,7 @@ const DrinkCustomizer = ({ drink, origin, onClose, onAdd, user, onSignIn }) => {
   const [savingFav, setSavingFav] = useState(false);
   const [favSaved, setFavSaved] = useState(false);
 
+  const availableAddOns = useMemo(() => addOnsFor(drink.id), [drink.id]);
   const toggleAddOn = (id) => setAddOns(addOns.includes(id) ? addOns.filter(a => a !== id) : [...addOns, id]);
 
   const basePrice = size === 'L' ? drink.priceL : drink.priceBucket;
@@ -889,10 +890,11 @@ const DrinkCustomizer = ({ drink, origin, onClose, onAdd, user, onSignIn }) => {
             )}
           </div>
 
+          {availableAddOns.length > 0 && (
           <div style={{ marginBottom: '20px' }}>
             <label style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.2em', textTransform: 'uppercase', color: '#5C3A21', display: 'block', marginBottom: '10px' }}>Add Ons</label>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-              {ADD_ONS.map(a => (
+              {availableAddOns.map(a => (
                 <button key={a.id} onClick={() => toggleAddOn(a.id)} data-compact
                   style={{ padding: '10px 14px', borderRadius: '999px', border: `1.5px solid ${addOns.includes(a.id) ? '#E8A4B8' : 'rgba(92, 58, 33, 0.2)'}`, background: addOns.includes(a.id) ? '#E8A4B8' : '#FFFEFA', color: '#2A1810', fontFamily: '"Outfit", sans-serif', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s' }}>
                   {addOns.includes(a.id) && <Check size={12} />}
@@ -901,6 +903,7 @@ const DrinkCustomizer = ({ drink, origin, onClose, onAdd, user, onSignIn }) => {
               ))}
             </div>
           </div>
+          )}
 
           <div style={{ marginBottom: '20px' }}>
             <label style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.2em', textTransform: 'uppercase', color: '#5C3A21', display: 'block', marginBottom: '8px' }}>Special Notes</label>

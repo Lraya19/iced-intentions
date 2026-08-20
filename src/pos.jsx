@@ -23,7 +23,7 @@ import {
   ChevronLeft, ShoppingBag, RotateCcw, Gift, ArrowLeft,
 } from 'lucide-react';
 import { InfinityHeart, QrCode } from './ui';
-import { MENU, ADD_ONS, sizeLabel, TAX_RATE, round2, formatLocalDate } from './menu';
+import { MENU, ADD_ONS, addOnsFor, sizeLabel, TAX_RATE, round2, formatLocalDate } from './menu';
 import { saveOrder } from './storage';
 import { settleCash, getOrderPaymentStatus } from './admin';
 
@@ -175,9 +175,9 @@ const Ticket = ({ lines, setLines, compact = false }) => {
               </button>
             </span>
           </div>
-          {!compact && (
+          {!compact && addOnsFor(l.drinkId).length > 0 && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginTop: '7px' }}>
-              {ADD_ONS.map(a => {
+              {addOnsFor(l.drinkId).map(a => {
                 const on = l.addOns.includes(a.id);
                 return (
                   <button key={a.id}

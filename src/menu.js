@@ -36,6 +36,9 @@ const MENU = {
   },
   refreshers: {
     title: 'Refreshers',
+    // Fruit and ice: oatmilk, an extra shot and extra matcha are all
+    // coffee/matcha modifiers, so none of them belong here.
+    addOns: [],
     sizeNote: '32 oz',
     items: [
       { id: 'sweet-cielo', photo: '/drinks/sweet-cielo-v2.jpeg', name: 'Sweet Cielo', desc: 'Blue raspberry refresher', priceL: 8.00, priceBucket: 8.00, singleSize: true, gradient: 'linear-gradient(180deg, #CDEBFF 0%, #6FB7E8 50%, #2E7FC2 100%)' },
@@ -79,6 +82,14 @@ const round2 = (n) => Math.round(n * 100) / 100;
 // Look up a drink by id + a friendly size label (single-size drinks show "32 oz").
 const DRINK_BY_ID = {};
 Object.values(MENU).forEach(c => c.items.forEach(d => { DRINK_BY_ID[d.id] = d; }));
+// Which add-ons a drink can take. A category may narrow the list with its
+// own `addOns` array; anything without one offers the full set.
+const addOnsFor = (drinkId) => {
+  const cat = Object.values(MENU).find(c => c.items.some(d => d.id === drinkId));
+  if (cat && Array.isArray(cat.addOns)) return ADD_ONS.filter(a => cat.addOns.includes(a.id));
+  return ADD_ONS;
+};
+
 const sizeLabel = (drinkId, size) => {
   const d = DRINK_BY_ID[drinkId];
   if (d && d.singleSize) return '32 oz';
@@ -105,4 +116,4 @@ const parseLocalDate = (iso) => {
 };
 
 
-export { MENU, ADD_ONS, SIZES, DRINK_BY_ID, sizeLabel, TAX_RATE, round2, formatLocalDate, toDisplayTime, parseLocalDate };
+export { MENU, ADD_ONS, SIZES, DRINK_BY_ID, sizeLabel, addOnsFor, TAX_RATE, round2, formatLocalDate, toDisplayTime, parseLocalDate };
