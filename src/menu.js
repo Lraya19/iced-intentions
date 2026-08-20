@@ -42,6 +42,7 @@ const MENU = {
       { id: 'sunkissed-cielo', photo: '/drinks/sunkissed-cielo-v2.jpeg', name: 'SunKissed Cielo', desc: 'Mango dragonfruit refresher', priceL: 8.00, priceBucket: 8.00, singleSize: true, gradient: 'linear-gradient(180deg, #FFD8A8 0%, #E86A9E 55%, #9C2B8A 100%)' },
       { id: 'coquetta-crush', photo: '/drinks/coquetta-crush-v2.jpeg', name: 'Coquetta Crush', desc: 'Strawberry refresher', priceL: 8.00, priceBucket: 8.00, singleSize: true, gradient: 'linear-gradient(180deg, #FFF0F0 0%, #FFB8C8 50%, #E8557A 100%)' },
       { id: 'summer-chula', photo: '/drinks/summer-chula.jpeg', name: 'Summer Chula', desc: 'Mango with a chamoy rim', priceL: 8.00, priceBucket: 8.00, singleSize: true, gradient: 'linear-gradient(180deg, #FFC98A 0%, #F0803C 45%, #B5322E 100%)' },
+      { id: 'green-chula', photo: '/drinks/green-chula.jpeg', name: 'Green Chula', desc: 'Green apple refresher', priceL: 8.00, priceBucket: 8.00, singleSize: true, gradient: 'linear-gradient(180deg, #E8F8D0 0%, #A5D96A 50%, #5FA02E 100%)' },
     ],
   },
   energy: {

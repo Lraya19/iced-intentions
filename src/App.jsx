@@ -415,7 +415,7 @@ const HomePage = ({ setPage, onSignIn, user }) => {
             <div style={{ display: 'flex', gap: '24px', marginTop: '36px', flexWrap: 'wrap' }}>
               {[
                 { num: '4+', label: 'Signature Matchas' },
-                { num: '16', label: 'Crafted Drinks' },
+                { num: '17', label: 'Crafted Drinks' },
                 { num: '∞', label: 'Custom' },
               ].map(stat => (
                 <div key={stat.label}>

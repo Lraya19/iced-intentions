@@ -47,6 +47,7 @@ const PRICES: Record<string, { L: number; B: number }> = {
   "sunkissed-cielo": { L: 8.00, B: 8.00 },
   "coquetta-crush": { L: 8.00, B: 8.00 },
   "summer-chula": { L: 8.00, B: 8.00 },
+  "green-chula": { L: 8.00, B: 8.00 },
   "paraiso-fuse": { L: 8.00, B: 12.00 },
   "cremita-fuse": { L: 8.00, B: 12.00 },
   "azulita-fuse": { L: 8.00, B: 12.00 },
@@ -257,7 +258,8 @@ Deno.serve(async (req: Request) => {
       return json({ error: "That order belongs to a different account." }, 403);
     }
 
-    const isInStore = orderRow.order_type === "instore";
+    const isInStore = orderRow.order_type === "instore" ||
+      orderRow.order_type === "pos" || orderRow.order_type === "kiosk";
 
     if (!isInStore) {
       pickupDate = orderRow.pickup_date ?? body.pickupDate ?? null;
@@ -370,6 +372,7 @@ Deno.serve(async (req: Request) => {
       .from("orders")
       .update({
         payment_status: "paid",
+        payment_method: "card",
         square_payment_id: paymentId,
         square_receipt_url: receiptUrl,
         subtotal,
