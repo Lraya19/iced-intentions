@@ -350,7 +350,7 @@ const HOME_GALLERY = [
 // flagging the next new drink in menu.js is the only step needed — and
 // the banner disappears by itself when nothing is flagged.
 // ═══════════════════════════════════════════════════════
-const NewArrivalBanner = ({ setPage }) => {
+const NewArrivalBanner = ({ onOrderDrink }) => {
   const drink = useMemo(
     () => Object.values(MENU).flatMap(c => c.items).find(d => d.isNew),
     [],
@@ -379,7 +379,7 @@ const NewArrivalBanner = ({ setPage }) => {
           </p>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '18px', flexWrap: 'wrap', marginTop: '26px' }}>
-            <button onClick={() => setPage('order')}
+            <button onClick={() => onOrderDrink(drink.id)}
               style={{ background: '#E8A4B8', color: '#2A1810', padding: '16px 32px', borderRadius: '999px', border: 'none', fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '9px' }}>
               Order it now <ChevronRight size={15} />
             </button>
@@ -398,7 +398,7 @@ const NewArrivalBanner = ({ setPage }) => {
   );
 };
 
-const HomePage = ({ setPage, onSignIn, user }) => {
+const HomePage = ({ setPage, onSignIn, user, onOrderDrink }) => {
   const featured = [
     { ...MENU.matcha.items[3], category: 'Matcha' },
     { ...MENU.lattes.items[1], category: 'Latte' },
@@ -466,7 +466,7 @@ const HomePage = ({ setPage, onSignIn, user }) => {
         </div>
       </section>
 
-      <NewArrivalBanner setPage={setPage} />
+      <NewArrivalBanner onOrderDrink={onOrderDrink} />
 
       {/* STORY */}
       <section className="section-pad" style={{ background: '#F0E2C9', position: 'relative' }}>
@@ -2163,12 +2163,10 @@ const CartDrawer = ({ cart, cartTotal, onClose, onRemove, onCheckout, onBrowse }
   );
 };
 
-const OrderPage = ({ cart, setCart, user, onSignIn, inStore = false }) => {
+const OrderPage = ({ cart, setCart, user, onSignIn, inStore = false, cartOpen, setCartOpen, showCheckout, setShowCheckout, updateQty, highlightDrinkId, onHighlightDone }) => {
   const [activeCategory, setActiveCategory] = useState('matcha');
   const [selectedDrink, setSelectedDrink] = useState(null);
-  const [showCheckout, setShowCheckout] = useState(false);
   const [confirmation, setConfirmation] = useState(null);
-  const [cartOpen, setCartOpen] = useState(false);
   const [store, setStore] = useState({ ordering_paused: false, pause_message: '', sold_out_drinks: [] });
 
   // Load store settings (pause + sold-out) and keep them live.
@@ -2183,7 +2181,6 @@ const OrderPage = ({ cart, setCart, user, onSignIn, inStore = false }) => {
   const soldOut = store.sold_out_drinks || [];
 
   const cartTotal = cart.reduce((sum, item) => sum + item.lineTotal, 0);
-  const cartCount = cart.reduce((s, i) => s + i.qty, 0);
 
   const addToCart = (drink, size, addOns, qty, notes) => {
     const basePrice = size === 'L' ? drink.priceL : drink.priceBucket;
@@ -2201,18 +2198,27 @@ const OrderPage = ({ cart, setCart, user, onSignIn, inStore = false }) => {
     setCartOpen(true); // slide the cart open so they see the drink was added
   };
 
-  const removeFromCart = (id) => setCart(cart.filter(c => c.id !== id));
 
-  // Re-derive lineTotal rather than scaling it — scaling compounds any
-  // rounding already baked into the stored value.
-  const updateQty = (id, qty) => {
-    if (qty < 1) { removeFromCart(id); return; }
-    setCart(cart.map(i => {
-      if (i.id !== id) return i;
-      const addOnTotal = (i.addOns || []).reduce((s, aid) => s + (ADD_ONS.find(a => a.id === aid)?.price || 0), 0);
-      return { ...i, qty, lineTotal: round2((i.basePrice + addOnTotal) * qty) };
-    }));
-  };
+  // Jump straight to a drink — the New Arrival banner names one, and
+  // dropping people on whatever category happened to be open makes them
+  // hunt for the thing they just clicked.
+  const cardRefs = useRef({});
+  useEffect(() => {
+    if (!highlightDrinkId) return;
+    const entry = Object.entries(MENU).find(([, c]) => c.items.some(d => d.id === highlightDrinkId));
+    if (entry) setActiveCategory(entry[0]);
+    // One frame for the category swap to render before we look for the card.
+    const t = setTimeout(() => {
+      const el = cardRefs.current[highlightDrinkId];
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('drink-card-spotlight');
+        setTimeout(() => el.classList.remove('drink-card-spotlight'), 2800);
+      }
+      onHighlightDone?.();
+    }, 140);
+    return () => clearTimeout(t);
+  }, [highlightDrinkId]); // eslint-disable-line
 
   if (confirmation) {
     return <OrderConfirmation order={confirmation} onClose={() => { setConfirmation(null); setCart([]); }} />;
@@ -2280,7 +2286,7 @@ const OrderPage = ({ cart, setCart, user, onSignIn, inStore = false }) => {
               const isSoldOut = soldOut.includes(drink.id);
               const disabled = isSoldOut || paused;
               return (
-              <button key={drink.id} onClick={(e) => !disabled && setSelectedDrink({ drink, origin: e.currentTarget.getBoundingClientRect() })} className="drink-card"
+              <button key={drink.id} ref={el => { cardRefs.current[drink.id] = el; }} onClick={(e) => !disabled && setSelectedDrink({ drink, origin: e.currentTarget.getBoundingClientRect() })} className="drink-card"
                 style={disabled ? { cursor: 'not-allowed' } : undefined} aria-disabled={disabled}>
                 <div className="drink-card-imgwrap">
                   {drink.photo ? (
@@ -2329,53 +2335,6 @@ const OrderPage = ({ cart, setCart, user, onSignIn, inStore = false }) => {
           </div>
         </div>
       </div>
-
-      {/* Persistent cart access */}
-      {cart.length > 0 && (
-        <>
-          {/* Mobile sticky bar */}
-          <button onClick={() => setCartOpen(true)} className="mobile-cart-bar" style={{ border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <ShoppingBag size={22} color="#FAF1E4" />
-                <span style={{ position: 'absolute', top: -6, right: -8, background: '#E8A4B8', color: '#2A1810', fontSize: '10px', fontWeight: 700, minWidth: '18px', height: '18px', padding: '0 4px', borderRadius: '999px', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
-                  {cartCount}
-                </span>
-              </div>
-              <div>
-                <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '10px', letterSpacing: '0.2em', textTransform: 'uppercase', opacity: 0.7 }}>Your Cart</div>
-                <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '20px', fontWeight: 600 }}>${cartTotal.toFixed(2)}</div>
-              </div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500 }}>
-              View <ChevronRight size={16} />
-            </div>
-          </button>
-
-          {/* Desktop floating pill */}
-          <button onClick={() => setCartOpen(true)} className="cart-fab">
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <ShoppingBag size={20} color="#FAF1E4" />
-              <span style={{ position: 'absolute', top: -8, right: -10, background: '#E8A4B8', color: '#2A1810', fontSize: '10px', fontWeight: 700, minWidth: '18px', height: '18px', padding: '0 4px', borderRadius: '999px', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
-                {cartCount}
-              </span>
-            </div>
-            <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '19px', fontWeight: 600 }}>${cartTotal.toFixed(2)}</span>
-            <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 500, opacity: 0.85 }}>View cart</span>
-          </button>
-        </>
-      )}
-
-      {/* Cart drawer */}
-      {cartOpen && (
-        <CartDrawer
-          cart={cart} cartTotal={cartTotal}
-          onClose={() => setCartOpen(false)}
-          onRemove={removeFromCart}
-          onCheckout={() => { setCartOpen(false); setShowCheckout(true); }}
-          onBrowse={() => setCartOpen(false)}
-        />
-      )}
 
       {/* Drink detail drawer */}
       {selectedDrink && (
@@ -3718,6 +3677,9 @@ export default function App() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [role, setRole] = useState(null); // 'owner' | 'staff' | null
   const [kioskPayId, setKioskPayId] = useState(null);
+  const [cartOpen, setCartOpen] = useState(false);
+  const [showCheckout, setShowCheckout] = useState(false);
+  const [highlightDrinkId, setHighlightDrinkId] = useState(null);
 
   // Track auth state across the whole app.
   useEffect(() => {
@@ -3747,6 +3709,28 @@ export default function App() {
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, []); // eslint-disable-line
+
+  const cartTotal = cart.reduce((sum, i) => sum + i.lineTotal, 0);
+  const cartCount = cart.reduce((s, i) => s + i.qty, 0);
+  const removeFromCart = (id) => setCart(cart.filter(c => c.id !== id));
+
+  // Re-derive lineTotal rather than scaling it — scaling compounds any
+  // rounding already baked into the stored value.
+  const updateQty = (id, qty) => {
+    if (qty < 1) { removeFromCart(id); return; }
+    setCart(cart.map(i => {
+      if (i.id !== id) return i;
+      const addOnTotal = (i.addOns || []).reduce((s, aid) => s + (ADD_ONS.find(a => a.id === aid)?.price || 0), 0);
+      return { ...i, qty, lineTotal: round2((i.basePrice + addOnTotal) * qty) };
+    }));
+  };
+
+  // Send someone to a specific drink, not just the menu.
+  const goToDrink = (drinkId) => {
+    setInStoreMode(false);
+    setHighlightDrinkId(drinkId);
+    setPage('order');
+  };
 
   // Re-order a saved favorite: add it straight to the cart and go to order page.
   const handleReorder = (drink) => {
@@ -3848,8 +3832,16 @@ export default function App() {
     <div style={{ background: '#FAF1E4', minHeight: '100vh', overflowX: 'hidden', maxWidth: '100%' }}>
       <Nav page={page} setPage={navigate} user={user} onAccount={goDashboard} onSignIn={() => setAuthOpen(true)} />
       <div className="fade-in" key={page}>
-        {page === 'home' && <HomePage setPage={setPage} onSignIn={() => setAuthOpen(true)} user={user} />}
-        {page === 'order' && <OrderPage cart={cart} setCart={setCart} user={user} onSignIn={() => setAuthOpen(true)} inStore={inStoreMode} />}
+        {page === 'home' && <HomePage setPage={setPage} onSignIn={() => setAuthOpen(true)} user={user} onOrderDrink={goToDrink} />}
+        {page === 'order' && (
+          <OrderPage
+            cart={cart} setCart={setCart} user={user} onSignIn={() => setAuthOpen(true)} inStore={inStoreMode}
+            cartOpen={cartOpen} setCartOpen={setCartOpen}
+            showCheckout={showCheckout} setShowCheckout={setShowCheckout}
+            updateQty={updateQty}
+            highlightDrinkId={highlightDrinkId} onHighlightDone={() => setHighlightDrinkId(null)}
+          />
+        )}
         {page === 'instore' && (
           <InStoreLanding
             user={user}
@@ -3874,10 +3866,57 @@ export default function App() {
           />
         )}
         {page === 'dashboard' && user && <DashboardPage user={user} setPage={setPage} onReorder={handleReorder} isAdmin={isAdmin} />}
-        {page === 'dashboard' && !user && <HomePage setPage={setPage} onSignIn={() => setAuthOpen(true)} user={user} />}
+        {page === 'dashboard' && !user && <HomePage setPage={setPage} onSignIn={() => setAuthOpen(true)} user={user} onOrderDrink={goToDrink} />}
         {page === 'owner' && <OwnerDashboard user={user} setPage={setPage} role={role} />}
       </div>
       <Footer setPage={navigate} />
+
+      {/* Cart follows across pages. Hidden during checkout (it would sit on
+          top of the pay bar) and on the counter/kiosk flows, which have
+          nothing to do with a pickup basket. */}
+      {cart.length > 0 && !showCheckout && ['home', 'order', 'dashboard'].includes(page) && (
+        <>
+          <button onClick={() => setCartOpen(true)} className="mobile-cart-bar" style={{ border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <ShoppingBag size={22} color="#FAF1E4" />
+                <span style={{ position: 'absolute', top: -6, right: -8, background: '#E8A4B8', color: '#2A1810', fontSize: '10px', fontWeight: 700, minWidth: '18px', height: '18px', padding: '0 4px', borderRadius: '999px', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
+                  {cartCount}
+                </span>
+              </div>
+              <div>
+                <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '10px', letterSpacing: '0.2em', textTransform: 'uppercase', opacity: 0.7 }}>Your Cart</div>
+                <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '20px', fontWeight: 600 }}>${cartTotal.toFixed(2)}</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500 }}>
+              View <ChevronRight size={16} />
+            </div>
+          </button>
+
+          <button onClick={() => setCartOpen(true)} className="cart-fab">
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <ShoppingBag size={20} color="#FAF1E4" />
+              <span style={{ position: 'absolute', top: -8, right: -10, background: '#E8A4B8', color: '#2A1810', fontSize: '10px', fontWeight: 700, minWidth: '18px', height: '18px', padding: '0 4px', borderRadius: '999px', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
+                {cartCount}
+              </span>
+            </div>
+            <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '19px', fontWeight: 600 }}>${cartTotal.toFixed(2)}</span>
+            <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 500, opacity: 0.85 }}>View cart</span>
+          </button>
+        </>
+      )}
+
+      {cartOpen && (
+        <CartDrawer
+          cart={cart} cartTotal={cartTotal}
+          onClose={() => setCartOpen(false)}
+          onRemove={removeFromCart}
+          onCheckout={() => { setCartOpen(false); setPage('order'); setShowCheckout(true); }}
+          onBrowse={() => { setCartOpen(false); setPage('order'); }}
+        />
+      )}
+
       {authOpen && <AuthModal onClose={() => setAuthOpen(false)} />}
     </div>
   );
