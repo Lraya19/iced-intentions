@@ -706,3 +706,52 @@ button {
     box-shadow: 0 0 0 3px rgba(232, 164, 184, 0.85) !important;
   }
 }
+
+/* ─────────────────────────────────────────────────────
+   Back pill — a plain text link at the top of a long form
+   gets skimmed past. This reads as a control.
+   ───────────────────────────────────────────────────── */
+.back-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 22px;
+  padding: 9px 20px 9px 9px;
+  border-radius: 999px;
+  border: 1.5px solid rgba(92, 58, 33, 0.18);
+  background: #FFFEFA;
+  color: #2A1810;
+  font-family: "Outfit", sans-serif;
+  font-size: 11.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(42, 24, 16, 0.06);
+  transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1), box-shadow 0.25s, border-color 0.25s;
+}
+.back-pill-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #F0E2C9;
+  color: #2A1810;
+  flex-shrink: 0;
+  transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+}
+@media (hover: hover) {
+  .back-pill:hover {
+    border-color: rgba(232, 164, 184, 0.9);
+    box-shadow: 0 8px 20px rgba(42, 24, 16, 0.1);
+  }
+  /* The arrow leads in the direction you're about to travel. */
+  .back-pill:hover .back-pill-icon { transform: translateX(-3px); }
+}
+.back-pill:active { transform: scale(0.97); }
+@media (prefers-reduced-motion: reduce) {
+  .back-pill, .back-pill-icon { transition: none; }
+  .back-pill:hover .back-pill-icon { transform: none; }
+}

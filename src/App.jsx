@@ -1248,8 +1248,12 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, inStore = false, onUpdate
   return (
     <div style={{ background: '#FAF1E4', minHeight: '100vh', overflowX: 'hidden', maxWidth: '100%' }}>
       <div style={{ maxWidth: '900px', margin: '0 auto', padding: '24px 20px 150px 20px', width: '100%' }}>
-        <button onClick={onBack} data-compact style={{ background: 'none', border: 'none', color: '#5C3A21', fontFamily: '"Outfit", sans-serif', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '20px', padding: '8px 0' }}>
-          <ChevronLeft size={16} /> Back to menu
+        {/* A borderless text link here reads as decoration and gets
+            skimmed past. Same pill treatment as the other controls, so it
+            looks like something you press. */}
+        <button onClick={onBack} className="back-pill" data-compact>
+          <span className="back-pill-icon"><ChevronLeft size={15} /></span>
+          Back to menu
         </button>
 
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
