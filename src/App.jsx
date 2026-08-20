@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Power, PauseCircle, PlayCircle, CheckCircle2, Package, RefreshCw,
   TrendingUp, Download, QrCode as QrCodeIcon, Printer, Banknote,
 } from 'lucide-react';
-import { InfinityHeart, QrCode } from './ui';
+import { InfinityHeart, QrCode, useDismiss, useSwipeDismiss, scrollSoftly } from './ui';
 
 // Staff-only screens. Lazy so the customer bundle never carries the till.
 const PosPage = lazy(() => import('./pos').then(m => ({ default: m.PosPage })));
@@ -427,7 +427,7 @@ const HomePage = ({ setPage, onSignIn, user, onOrderDrink }) => {
               Every drink is a tiny love letter — poured slow, layered with care, sealed with a soft top and a kiss of intention.
             </p>
             <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-              <button onClick={() => setPage('order')} style={{ background: '#2A1810', color: '#FAF1E4', padding: '14px 28px', borderRadius: '999px', border: 'none', fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.3s' }}
+              <button onClick={() => setPage('order')} style={{ background: '#2A1810', color: '#FAF1E4', padding: '14px 28px', borderRadius: '999px', border: 'none', fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'background-color 0.3s, border-color 0.3s, color 0.3s, transform 0.3s, opacity 0.3s' }}
                 onMouseEnter={(e) => { e.currentTarget.style.background = '#5C3A21'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = '#2A1810'; }}>
                 Order Online <ChevronRight size={14} />
@@ -742,6 +742,13 @@ const DrinkCustomizer = ({ drink, origin, onClose, onAdd, user, onSignIn }) => {
   const reducedMotion = typeof window !== 'undefined' &&
     window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
+  // Only from the top of the card — otherwise a swipe meant to scroll the
+  // options would throw the whole popup away.
+  const swipe = useSwipeDismiss({
+    ref: panelRef, axis: 'y', dir: 1, onDismiss: onClose,
+    canStart: () => (panelRef.current?.scrollTop ?? 0) <= 0,
+  });
+
   // FLIP: the card is already on screen, so rather than fading a panel in
   // from nowhere we measure where it sits, start the popup mapped exactly
   // onto it, and let it grow into place. The popup then dismisses back
@@ -851,8 +858,9 @@ const DrinkCustomizer = ({ drink, origin, onClose, onAdd, user, onSignIn }) => {
         <button onClick={close} style={{ position: 'absolute', top: '14px', right: '14px', background: 'rgba(255, 254, 250, 0.95)', border: 'none', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 3, boxShadow: '0 2px 10px rgba(42,24,16,0.18)' }} aria-label="Close">
           <X size={20} color="#2A1810" />
         </button>
-        {/* Hero: full, uncropped drink photo */}
-        <div style={{ background: drink.photo ? '#EDE4D3' : drink.gradient, display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
+        {/* Hero doubles as the drag handle: touch-action none so the browser
+            hands us the vertical gesture instead of scrolling the card. */}
+        <div {...swipe.handlers} style={{ background: drink.photo ? '#EDE4D3' : drink.gradient, display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'relative', overflow: 'hidden', flexShrink: 0, touchAction: 'none' }}>
           {drink.photo ? (
             <div style={{ width: '100%', aspectRatio: '4 / 5' }}>
               <img src={drink.photo} alt={drink.name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
@@ -880,7 +888,7 @@ const DrinkCustomizer = ({ drink, origin, onClose, onAdd, user, onSignIn }) => {
                 const price = s.id === 'L' ? drink.priceL : drink.priceBucket;
                 return (
                   <button key={s.id} onClick={() => setSize(s.id)}
-                    style={{ flex: 1, padding: '14px 10px', borderRadius: '4px', border: `1.5px solid ${size === s.id ? '#2A1810' : 'rgba(92, 58, 33, 0.2)'}`, background: size === s.id ? '#2A1810' : '#FFFEFA', color: size === s.id ? '#FAF1E4' : '#2A1810', fontFamily: '"Outfit", sans-serif', cursor: 'pointer', transition: 'all 0.2s' }}>
+                    style={{ flex: 1, padding: '14px 10px', borderRadius: '4px', border: `1.5px solid ${size === s.id ? '#2A1810' : 'rgba(92, 58, 33, 0.2)'}`, background: size === s.id ? '#2A1810' : '#FFFEFA', color: size === s.id ? '#FAF1E4' : '#2A1810', fontFamily: '"Outfit", sans-serif', cursor: 'pointer', transition: 'background-color 0.2s, border-color 0.2s, color 0.2s, transform 0.2s, opacity 0.2s' }}>
                     <div style={{ fontSize: '12px', letterSpacing: '0.08em', fontWeight: 500 }}>{s.label}</div>
                     <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '20px', marginTop: '4px', fontWeight: 600 }}>${price.toFixed(2)}</div>
                   </button>
@@ -896,7 +904,7 @@ const DrinkCustomizer = ({ drink, origin, onClose, onAdd, user, onSignIn }) => {
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
               {availableAddOns.map(a => (
                 <button key={a.id} onClick={() => toggleAddOn(a.id)} data-compact
-                  style={{ padding: '10px 14px', borderRadius: '999px', border: `1.5px solid ${addOns.includes(a.id) ? '#E8A4B8' : 'rgba(92, 58, 33, 0.2)'}`, background: addOns.includes(a.id) ? '#E8A4B8' : '#FFFEFA', color: '#2A1810', fontFamily: '"Outfit", sans-serif', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s' }}>
+                  style={{ padding: '10px 14px', borderRadius: '999px', border: `1.5px solid ${addOns.includes(a.id) ? '#E8A4B8' : 'rgba(92, 58, 33, 0.2)'}`, background: addOns.includes(a.id) ? '#E8A4B8' : '#FFFEFA', color: '#2A1810', fontFamily: '"Outfit", sans-serif', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', transition: 'background-color 0.2s, border-color 0.2s, color 0.2s, transform 0.2s, opacity 0.2s' }}>
                   {addOns.includes(a.id) && <Check size={12} />}
                   {a.name} <span style={{ opacity: 0.7 }}>+${a.price.toFixed(2)}</span>
                 </button>
@@ -932,7 +940,7 @@ const DrinkCustomizer = ({ drink, origin, onClose, onAdd, user, onSignIn }) => {
           <div style={{ display: 'flex', gap: '10px' }}>
             <button onClick={handleSaveFavorite} disabled={savingFav} data-compact
               title={user ? 'Save as favorite' : 'Sign in to save'}
-              style={{ width: '54px', flexShrink: 0, background: favSaved ? '#E8A4B8' : 'transparent', color: '#2A1810', padding: '16px', border: `1.5px solid ${favSaved ? '#E8A4B8' : 'rgba(92,58,33,0.25)'}`, borderRadius: '999px', cursor: savingFav ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}>
+              style={{ width: '54px', flexShrink: 0, background: favSaved ? '#E8A4B8' : 'transparent', color: '#2A1810', padding: '16px', border: `1.5px solid ${favSaved ? '#E8A4B8' : 'rgba(92,58,33,0.25)'}`, borderRadius: '999px', cursor: savingFav ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background-color 0.2s, border-color 0.2s, color 0.2s, transform 0.2s, opacity 0.2s' }}>
               {savingFav
                 ? <Loader2 size={16} className="spin" />
                 : <Heart size={16} fill={favSaved ? '#2A1810' : 'none'} stroke="#2A1810" />}
@@ -1292,7 +1300,7 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, inStore = false, onUpdate
             <div className="h-scroll">
               {days.map(d => (
                 <button key={d.iso} onClick={() => { setSelectedDate(d.iso); setSelectedTime(null); }}
-                  style={{ padding: '10px 14px', borderRadius: '4px', border: `1.5px solid ${selectedDate === d.iso ? '#2A1810' : 'rgba(92, 58, 33, 0.15)'}`, background: selectedDate === d.iso ? '#2A1810' : 'transparent', color: selectedDate === d.iso ? '#FAF1E4' : '#2A1810', cursor: 'pointer', textAlign: 'center', minWidth: '64px', transition: 'all 0.2s' }}>
+                  style={{ padding: '10px 14px', borderRadius: '4px', border: `1.5px solid ${selectedDate === d.iso ? '#2A1810' : 'rgba(92, 58, 33, 0.15)'}`, background: selectedDate === d.iso ? '#2A1810' : 'transparent', color: selectedDate === d.iso ? '#FAF1E4' : '#2A1810', cursor: 'pointer', textAlign: 'center', minWidth: '64px', transition: 'background-color 0.2s, border-color 0.2s, color 0.2s, transform 0.2s, opacity 0.2s' }}>
                   <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '9px', letterSpacing: '0.18em', textTransform: 'uppercase', opacity: 0.8 }}>{d.day}</div>
                   <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '20px', fontWeight: 600, lineHeight: 1, marginTop: '4px' }}>{d.date}</div>
                   <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '9px', marginTop: '4px', opacity: 0.7 }}>{d.month}{d.isToday ? ' · Today' : ''}</div>
@@ -1331,7 +1339,7 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, inStore = false, onUpdate
                   const lastSpot = slotCount(slot.time) === SLOT_CAPACITY - 1;
                   return (
                     <button key={slot.time} onClick={() => setSelectedTime(slot.time)} data-compact
-                      style={{ padding: '10px 6px', borderRadius: '3px', border: `1.5px solid ${selected ? '#E8A4B8' : 'rgba(92, 58, 33, 0.15)'}`, background: selected ? '#E8A4B8' : '#FAF1E4', color: '#2A1810', fontFamily: '"Outfit", sans-serif', fontSize: '12px', fontWeight: selected ? 600 : 400, cursor: 'pointer', transition: 'all 0.15s', lineHeight: 1.3 }}>
+                      style={{ padding: '10px 6px', borderRadius: '3px', border: `1.5px solid ${selected ? '#E8A4B8' : 'rgba(92, 58, 33, 0.15)'}`, background: selected ? '#E8A4B8' : '#FAF1E4', color: '#2A1810', fontFamily: '"Outfit", sans-serif', fontSize: '12px', fontWeight: selected ? 600 : 400, cursor: 'pointer', transition: 'background-color 0.15s, border-color 0.15s, color 0.15s, transform 0.15s, opacity 0.15s', lineHeight: 1.3 }}>
                       {slot.display}
                       {lastSpot && <span style={{ display: 'block', fontSize: '8.5px', letterSpacing: '0.08em', textTransform: 'uppercase', color: '#A83A56', marginTop: '2px' }}>1 left</span>}
                     </button>
@@ -1422,7 +1430,7 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, inStore = false, onUpdate
 
         {/* ── LOYALTY REWARD REDEMPTION ── */}
         {canRedeem && !payUnavailable && (
-          <div style={{ background: redeemOn ? 'linear-gradient(135deg, #2A1810, #5C3A21)' : '#FFFEFA', padding: '18px 20px', borderRadius: '12px', marginBottom: '16px', border: redeemOn ? 'none' : '1.5px solid #E8A4B8', transition: 'all 0.3s' }}>
+          <div style={{ background: redeemOn ? 'linear-gradient(135deg, #2A1810, #5C3A21)' : '#FFFEFA', padding: '18px 20px', borderRadius: '12px', marginBottom: '16px', border: redeemOn ? 'none' : '1.5px solid #E8A4B8', transition: 'background-color 0.3s, border-color 0.3s, color 0.3s, transform 0.3s, opacity 0.3s' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '14px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
                 <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: redeemOn ? '#E8A4B8' : '#F0E2C9', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -2083,9 +2091,19 @@ const ScanToPayPage = ({ orderId, user, onSignIn, onDone }) => {
 // ═══════════════════════════════════════════════════════
 const CartDrawer = ({ cart, cartTotal, onClose, onRemove, onCheckout, onBrowse }) => {
   const cartCount = cart.reduce((s, i) => s + i.qty, 0);
+  const { closing, close } = useDismiss(onClose, 280);
+  const panelRef = useRef(null);
+  // Entered from the right, so it throws out to the right.
+  const swipe = useSwipeDismiss({ ref: panelRef, axis: 'x', dir: 1, onDismiss: onClose });
   return (
-    <div className="drawer-overlay" onClick={onClose}>
-      <div className="drawer-panel" onClick={(e) => e.stopPropagation()}>
+    <div className={`drawer-overlay${closing ? ' is-closing' : ''}`} onClick={() => close()}>
+      <div
+        ref={panelRef}
+        className={`drawer-panel${closing ? ' is-closing' : ''}`}
+        onClick={(e) => e.stopPropagation()}
+        style={{ touchAction: 'pan-y' }}
+        {...swipe.handlers}
+      >
         {/* Header */}
         <div style={{ padding: '22px 24px 16px 24px', borderBottom: '1px solid rgba(92,58,33,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -2094,7 +2112,7 @@ const CartDrawer = ({ cart, cartTotal, onClose, onRemove, onCheckout, onBrowse }
               Your Cart {cartCount > 0 && <span style={{ fontSize: '15px', color: '#5C3A21' }}>({cartCount})</span>}
             </h3>
           </div>
-          <button onClick={onClose} data-compact style={{ background: 'rgba(92,58,33,0.07)', border: 'none', borderRadius: '50%', width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }} aria-label="Close cart">
+          <button onClick={() => close()} data-compact style={{ background: 'rgba(92,58,33,0.07)', border: 'none', borderRadius: '50%', width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }} aria-label="Close cart">
             <X size={19} color="#2A1810" />
           </button>
         </div>
@@ -2107,7 +2125,7 @@ const CartDrawer = ({ cart, cartTotal, onClose, onRemove, onCheckout, onBrowse }
             <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', color: '#5C3A21', fontSize: '17px', margin: '0 0 18px 0' }}>
               Your cart is waiting for love letters.
             </p>
-            <button onClick={onBrowse} style={{ background: '#2A1810', color: '#FAF1E4', padding: '13px 28px', borderRadius: '999px', border: 'none', fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 500, cursor: 'pointer' }}>
+            <button onClick={() => close(onBrowse)} style={{ background: '#2A1810', color: '#FAF1E4', padding: '13px 28px', borderRadius: '999px', border: 'none', fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 500, cursor: 'pointer' }}>
               Browse the menu
             </button>
           </div>
@@ -2155,11 +2173,11 @@ const CartDrawer = ({ cart, cartTotal, onClose, onRemove, onCheckout, onBrowse }
               <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '13px', color: '#5C3A21', margin: '0 0 14px 0' }}>
                 Sales tax calculated at checkout.
               </p>
-              <button onClick={onCheckout}
+              <button onClick={() => close(onCheckout)}
                 style={{ width: '100%', background: '#2A1810', color: '#FAF1E4', padding: '17px', border: 'none', borderRadius: '999px', fontFamily: '"Outfit", sans-serif', fontSize: '13px', letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
                 Checkout <ChevronRight size={16} />
               </button>
-              <button onClick={onBrowse} style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', marginTop: '10px', fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '15px', color: '#5C3A21' }}>
+              <button onClick={() => close(onBrowse)} style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', marginTop: '10px', fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '15px', color: '#5C3A21' }}>
                 Keep browsing
               </button>
             </div>
@@ -2218,7 +2236,7 @@ const OrderPage = ({ cart, setCart, user, onSignIn, inStore = false, cartOpen, s
     const t = setTimeout(() => {
       const el = cardRefs.current[highlightDrinkId];
       if (el) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        scrollSoftly(el, { block: 'center' });
         el.classList.add('drink-card-spotlight');
         setTimeout(() => el.classList.remove('drink-card-spotlight'), 2800);
       }
@@ -2280,7 +2298,7 @@ const OrderPage = ({ cart, setCart, user, onSignIn, inStore = false, cartOpen, s
         <div className="cat-tabs" style={{ marginBottom: '30px' }}>
           {Object.entries(MENU).map(([key, cat]) => (
             <button key={key} onClick={() => setActiveCategory(key)}
-              style={{ padding: '11px 22px', borderRadius: '999px', border: `1.5px solid ${activeCategory === key ? '#2A1810' : 'rgba(92,58,33,0.25)'}`, background: activeCategory === key ? '#2A1810' : 'transparent', color: activeCategory === key ? '#FAF1E4' : '#5C3A21', fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.25s', flexShrink: 0 }}>
+              style={{ padding: '11px 22px', borderRadius: '999px', border: `1.5px solid ${activeCategory === key ? '#2A1810' : 'rgba(92,58,33,0.25)'}`, background: activeCategory === key ? '#2A1810' : 'transparent', color: activeCategory === key ? '#FAF1E4' : '#5C3A21', fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'background-color 0.25s, border-color 0.25s, color 0.25s, transform 0.25s, opacity 0.25s', flexShrink: 0 }}>
               {cat.title}
             </button>
           ))}
@@ -2354,6 +2372,7 @@ const OrderPage = ({ cart, setCart, user, onSignIn, inStore = false, cartOpen, s
 // AUTH MODAL (magic link sign in / join)
 // ═══════════════════════════════════════════════════════
 const AuthModal = ({ onClose, initialMode = 'login' }) => {
+  const { closing, close } = useDismiss(onClose, 240);
   const [mode, setMode] = useState(initialMode); // 'login' | 'join'
   const [step, setStep] = useState('email');     // 'email' | 'code'
   const [email, setEmail] = useState('');
@@ -2407,7 +2426,7 @@ const AuthModal = ({ onClose, initialMode = 'login' }) => {
     try {
       await verifyLoginCode(email, clean);
       // onAuthChange (app-level) will pick up the new session and log them in.
-      onClose();
+      close();
     } catch (err) {
       setError(err.message || 'Could not verify your code.');
     } finally {
@@ -2416,9 +2435,9 @@ const AuthModal = ({ onClose, initialMode = 'login' }) => {
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content slide-up" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '440px' }}>
-        <button onClick={onClose} style={{ position: 'absolute', top: '12px', right: '12px', background: 'rgba(255,254,250,0.95)', border: 'none', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }} aria-label="Close">
+    <div className={`modal-overlay${closing ? ' is-closing' : ''}`} onClick={() => close()}>
+      <div className={`modal-content slide-up${closing ? ' is-closing' : ''}`} onClick={(e) => e.stopPropagation()} style={{ maxWidth: '440px' }}>
+        <button onClick={() => close()} style={{ position: 'absolute', top: '12px', right: '12px', background: 'rgba(255,254,250,0.95)', border: 'none', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 2, boxShadow: '0 2px 8px rgba(0,0,0,0.12)' }} aria-label="Close">
           <X size={20} color="#2A1810" />
         </button>
 
@@ -2483,11 +2502,11 @@ const AuthModal = ({ onClose, initialMode = 'login' }) => {
               {/* Log in / Join toggle */}
               <div style={{ display: 'flex', background: '#F0E2C9', borderRadius: '999px', padding: '4px', marginBottom: '22px' }}>
                 <button onClick={() => { setMode('login'); setError(''); }} data-compact
-                  style={{ flex: 1, padding: '9px', borderRadius: '999px', border: 'none', cursor: 'pointer', background: mode === 'login' ? '#2A1810' : 'transparent', color: mode === 'login' ? '#FAF1E4' : '#5C3A21', fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 500, transition: 'all 0.2s' }}>
+                  style={{ flex: 1, padding: '9px', borderRadius: '999px', border: 'none', cursor: 'pointer', background: mode === 'login' ? '#2A1810' : 'transparent', color: mode === 'login' ? '#FAF1E4' : '#5C3A21', fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 500, transition: 'background-color 0.2s, border-color 0.2s, color 0.2s, transform 0.2s, opacity 0.2s' }}>
                   Log In
                 </button>
                 <button onClick={() => { setMode('join'); setError(''); }} data-compact
-                  style={{ flex: 1, padding: '9px', borderRadius: '999px', border: 'none', cursor: 'pointer', background: mode === 'join' ? '#2A1810' : 'transparent', color: mode === 'join' ? '#FAF1E4' : '#5C3A21', fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 500, transition: 'all 0.2s' }}>
+                  style={{ flex: 1, padding: '9px', borderRadius: '999px', border: 'none', cursor: 'pointer', background: mode === 'join' ? '#2A1810' : 'transparent', color: mode === 'join' ? '#FAF1E4' : '#5C3A21', fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 500, transition: 'background-color 0.2s, border-color 0.2s, color 0.2s, transform 0.2s, opacity 0.2s' }}>
                   Join
                 </button>
               </div>
@@ -2574,7 +2593,7 @@ const StampCard = ({ balance }) => {
             border: `1.5px solid ${i < filled ? '#E8A4B8' : 'rgba(250,241,228,0.3)'}`,
             background: i < filled ? '#E8A4B8' : 'transparent',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            transition: 'all 0.3s',
+            transition: 'background-color 0.3s, border-color 0.3s, color 0.3s, transform 0.3s, opacity 0.3s',
           }}>
             {i < filled
               ? <Coffee size={16} color="#2A1810" />
@@ -3476,7 +3495,7 @@ const OwnerDashboard = ({ user, setPage, role }) => {
               const isSoldOut = settings.sold_out_drinks?.includes(d.id);
               return (
                 <button key={d.id} onClick={() => toggleSoldOut(d.id)} disabled={savingDrink === d.id}
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', textAlign: 'left', padding: '11px 13px', borderRadius: '10px', border: `1.5px solid ${isSoldOut ? '#A83A56' : 'rgba(92,58,33,0.15)'}`, background: isSoldOut ? 'rgba(168,58,86,0.08)' : '#FAF1E4', cursor: savingDrink === d.id ? 'wait' : 'pointer', transition: 'all 0.2s' }}>
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', textAlign: 'left', padding: '11px 13px', borderRadius: '10px', border: `1.5px solid ${isSoldOut ? '#A83A56' : 'rgba(92,58,33,0.15)'}`, background: isSoldOut ? 'rgba(168,58,86,0.08)' : '#FAF1E4', cursor: savingDrink === d.id ? 'wait' : 'pointer', transition: 'background-color 0.2s, border-color 0.2s, color 0.2s, transform 0.2s, opacity 0.2s' }}>
                   <span style={{ minWidth: 0 }}>
                     <span style={{ display: 'block', fontFamily: '"Cormorant Garamond", serif', fontSize: '16px', fontStyle: 'italic', color: '#2A1810', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.name}</span>
                     <span style={{ display: 'block', fontFamily: '"Outfit", sans-serif', fontSize: '9px', letterSpacing: '0.12em', textTransform: 'uppercase', color: isSoldOut ? '#A83A56' : '#5C3A21', fontWeight: 600, marginTop: '1px' }}>{isSoldOut ? 'Sold out' : 'Available'}</span>
@@ -3707,7 +3726,7 @@ export default function App() {
     return () => { alive = false; };
   }, [user]);
 
-  useEffect(() => { window.scrollTo({ top: 0, behavior: 'smooth' }); }, [page]);
+  useEffect(() => { scrollSoftly(window, { top: 0 }); }, [page]);
 
   // Drop ?pay=/?instore= from the address bar once we've read them, so a
   // refresh or a shared link doesn't land someone back on a stale charge.

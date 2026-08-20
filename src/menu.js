@@ -30,7 +30,7 @@ const MENU = {
   },
   lattes: {
     title: 'Lattes',
-    // Coffee modifiers only. Extra matcha and chamoy don't belong in a latte.
+    // Coffee modifiers only.
     addOns: ['oatmilk', 'extra-shot'],
     items: [
       { id: 'dulce-moonkiss', photo: '/drinks/dulce-moon-kiss-v3.jpeg', name: 'Dulce Moon-Kiss', desc: 'Chocolate banana, topped with imported cinnamon from El Salvador', priceL: 8.00, priceBucket: 15.00, gradient: 'linear-gradient(180deg, #F5E6D3 0%, #C8A57A 50%, #6B4423 100%)' },
@@ -69,7 +69,6 @@ const MENU = {
 const ADD_ONS = [
   { id: 'oatmilk', name: 'Oatmilk', price: 0.75 },
   { id: 'extra-shot', name: 'Extra Shot', price: 0.75 },
-  { id: 'chamoy', name: 'Chamoy', price: 0.75 },
   { id: 'extra-matcha', name: 'Extra Matcha', price: 1.00 },
 ];
 

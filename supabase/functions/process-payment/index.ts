@@ -57,7 +57,6 @@ const PRICES: Record<string, { L: number; B: number }> = {
 const ADD_ON_PRICES: Record<string, number> = {
   "oatmilk": 0.75,
   "extra-shot": 0.75,
-  "chamoy": 0.75,
   "extra-matcha": 1.00,
 };
 
