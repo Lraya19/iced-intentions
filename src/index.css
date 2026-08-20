@@ -515,3 +515,79 @@ button {
   .pos-grid { grid-template-columns: 1fr 360px; }
 }
 .pos-grid > * { min-width: 0; }
+
+/* ─────────────────────────────────────────────────────
+   Drink popup — grows out of the card you tapped.
+   Replaces the old right-hand drawer: a sheet sliding in
+   from an edge has no relationship to the thing you
+   clicked, which is the whole point of this interaction.
+   ───────────────────────────────────────────────────── */
+.popover-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  /* Dim + blur so the popup reads as a focused task on a
+     receded background, not a card floating on a peer. */
+  background: rgba(42, 24, 16, 0.42);
+  backdrop-filter: blur(7px) saturate(120%);
+  -webkit-backdrop-filter: blur(7px) saturate(120%);
+  animation: popover-scrim-in 260ms ease-out both;
+}
+.popover-overlay.is-closing {
+  animation: popover-scrim-out 260ms ease-in both;
+}
+@keyframes popover-scrim-in  { from { opacity: 0 } to { opacity: 1 } }
+@keyframes popover-scrim-out { from { opacity: 1 } to { opacity: 0 } }
+
+.popover-card {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  max-height: min(88vh, 860px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  background: #FFFEFA;
+  border-radius: 24px;
+  /* Bigger surface, thicker material: a deeper shadow than a
+     chip so it reads as genuinely lifted off the page. */
+  box-shadow: 0 32px 80px rgba(42, 24, 16, 0.34), 0 2px 8px rgba(42, 24, 16, 0.14);
+  transform-origin: center center;
+  will-change: transform, opacity;
+}
+
+/* Two columns once there's room: the photo earns the space,
+   and it keeps the controls above the fold without scrolling. */
+@media (min-width: 900px) and (min-height: 620px) {
+  .popover-card {
+    max-width: 880px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-items: stretch;
+  }
+  /* Photo column fills the card's full height rather than keeping its
+     4/5 box and leaving a gap beside the taller controls column. */
+  .popover-card > div:first-of-type { border-radius: 24px 0 0 24px; }
+  .popover-card > div:first-of-type > div { aspect-ratio: auto !important; height: 100%; }
+  .popover-card > div:last-of-type { overflow-y: auto; max-height: min(88vh, 860px); }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .popover-overlay { background: rgba(42, 24, 16, 0.72); backdrop-filter: none; -webkit-backdrop-filter: none; }
+}
+
+/* Reduced motion: keep the dimming (it aids comprehension),
+   drop the travel. A cross-fade, not a flight across the screen. */
+@media (prefers-reduced-motion: reduce) {
+  .popover-overlay, .popover-overlay.is-closing { animation-duration: 140ms; }
+  .popover-card { transition: opacity 140ms ease !important; transform: none !important; }
+}
+
+/* Press feedback lands on pointer-down, not on release. */
+.drink-card:active { transform: scale(0.985); }
+
+/* Equal-height cards across a row, whatever the copy length. */
+.drink-card { height: 100%; }

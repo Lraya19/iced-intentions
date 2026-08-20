@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useMemo, useRef, lazy, Suspense } from 'react';
 import {
   Heart, ShoppingBag, Calendar, Clock, MapPin, Phone, Instagram,
   ChevronRight, ChevronLeft, X, Plus, Minus, Check, Sparkles,
@@ -433,7 +433,7 @@ const HomePage = ({ setPage, onSignIn, user }) => {
             </div>
             {/* Center: Mornenita Mornings (hero) */}
             <div style={{ position: 'relative', zIndex: 2, width: 'clamp(170px, 30vw, 240px)', aspectRatio: '4 / 5', borderRadius: '20px', overflow: 'hidden', boxShadow: '0 24px 60px rgba(42,24,16,0.28)' }}>
-              <img src="/drinks/mornenita-mornings-v2.jpeg" alt="Mornenita Mornings" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+              <img src="/drinks/mornenita-mornings-v3.jpeg" alt="Mornenita Mornings" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
             </div>
             {/* Back-right: Azulita Fuse */}
             <div style={{ position: 'absolute', bottom: '4%', right: '6%', transform: 'rotate(8deg)', width: 'clamp(120px, 20vw, 168px)', aspectRatio: '4 / 5', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 14px 36px rgba(42,24,16,0.18)', zIndex: 1 }}>
@@ -711,7 +711,72 @@ const CheckoutInput = ({ label, value, onChange, placeholder, type = 'text' }) =
 // ═══════════════════════════════════════════════════════
 // DRINK CUSTOMIZER MODAL
 // ═══════════════════════════════════════════════════════
-const DrinkCustomizer = ({ drink, onClose, onAdd, user, onSignIn }) => {
+const DrinkCustomizer = ({ drink, origin, onClose, onAdd, user, onSignIn }) => {
+  const panelRef = useRef(null);
+  const flipRef = useRef('');
+  const [closing, setClosing] = useState(false);
+
+  const reducedMotion = typeof window !== 'undefined' &&
+    window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+  // FLIP: the card is already on screen, so rather than fading a panel in
+  // from nowhere we measure where it sits, start the popup mapped exactly
+  // onto it, and let it grow into place. The popup then dismisses back
+  // along the same path — things should leave the way they arrived.
+  useLayoutEffect(() => {
+    const panel = panelRef.current;
+    if (!panel) return;
+
+    document.body.style.overflow = 'hidden';
+    if (!origin || reducedMotion) return () => { document.body.style.overflow = ''; };
+
+    const final = panel.getBoundingClientRect();
+    // Uniform scale: scaling x and y independently would visibly stretch
+    // the type on the way in.
+    const scale = Math.max(0.1, origin.width / final.width);
+    const dx = (origin.left + origin.width / 2) - (final.left + final.width / 2);
+    const dy = (origin.top + origin.height / 2) - (final.top + final.height / 2);
+    const flip = `translate(${dx}px, ${dy}px) scale(${scale})`;
+    flipRef.current = flip;
+
+    panel.style.transition = 'none';
+    panel.style.transform = flip;
+    panel.style.opacity = '0.35';
+    panel.getBoundingClientRect(); // flush before we animate away from it
+
+    const raf = requestAnimationFrame(() => {
+      // Critically damped: a tap carries no momentum, so overshoot would
+      // read as decoration rather than physics.
+      panel.style.transition = 'transform 480ms cubic-bezier(0.32, 0.72, 0, 1), opacity 260ms ease-out';
+      panel.style.transform = 'none';
+      panel.style.opacity = '1';
+    });
+    return () => { cancelAnimationFrame(raf); document.body.style.overflow = ''; };
+  }, []); // eslint-disable-line
+
+  // Dismiss back into the card it came from.
+  const playExit = (then) => {
+    if (closing) return;
+    setClosing(true);
+    const panel = panelRef.current;
+    if (panel && flipRef.current && !reducedMotion) {
+      // Transitioning from whatever is on screen right now, so grabbing
+      // Close mid-open reverses smoothly instead of jumping.
+      panel.style.transition = 'transform 340ms cubic-bezier(0.4, 0, 0.2, 1), opacity 260ms ease-in';
+      panel.style.transform = flipRef.current;
+      panel.style.opacity = '0';
+    }
+    setTimeout(then, reducedMotion ? 140 : 300);
+  };
+
+  const close = () => playExit(onClose);
+
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }); // eslint-disable-line
+
   const [size, setSize] = useState(drink.singleSize ? 'BUCKET' : 'L');
   const [addOns, setAddOns] = useState([]);
   const [qty, setQty] = useState(1);
@@ -757,9 +822,9 @@ const DrinkCustomizer = ({ drink, onClose, onAdd, user, onSignIn }) => {
   };
 
   return (
-    <div className="drawer-overlay" onClick={onClose}>
-      <div className="drawer-panel" onClick={(e) => e.stopPropagation()}>
-        <button onClick={onClose} style={{ position: 'absolute', top: '14px', right: '14px', background: 'rgba(255, 254, 250, 0.95)', border: 'none', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 3, boxShadow: '0 2px 10px rgba(42,24,16,0.18)' }} aria-label="Close">
+    <div className={`popover-overlay${closing ? ' is-closing' : ''}`} onClick={close}>
+      <div className="popover-card" ref={panelRef} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={drink.name}>
+        <button onClick={close} style={{ position: 'absolute', top: '14px', right: '14px', background: 'rgba(255, 254, 250, 0.95)', border: 'none', borderRadius: '50%', width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 3, boxShadow: '0 2px 10px rgba(42,24,16,0.18)' }} aria-label="Close">
           <X size={20} color="#2A1810" />
         </button>
         {/* Hero: full, uncropped drink photo */}
@@ -846,7 +911,7 @@ const DrinkCustomizer = ({ drink, onClose, onAdd, user, onSignIn }) => {
                 ? <Loader2 size={16} className="spin" />
                 : <Heart size={16} fill={favSaved ? '#2A1810' : 'none'} stroke="#2A1810" />}
             </button>
-            <button onClick={() => onAdd(drink, size, addOns, qty, notes)}
+            <button onClick={() => playExit(() => onAdd(drink, size, addOns, qty, notes))} disabled={closing}
               style={{ flex: 1, background: '#2A1810', color: '#FAF1E4', padding: '16px', border: 'none', borderRadius: '999px', fontFamily: '"Outfit", sans-serif', fontSize: '13px', letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
               <Plus size={14} /> Add to Cart
             </button>
@@ -2117,7 +2182,7 @@ const OrderPage = ({ cart, setCart, user, onSignIn, inStore = false }) => {
               const isSoldOut = soldOut.includes(drink.id);
               const disabled = isSoldOut || paused;
               return (
-              <button key={drink.id} onClick={() => !disabled && setSelectedDrink(drink)} className="drink-card"
+              <button key={drink.id} onClick={(e) => !disabled && setSelectedDrink({ drink, origin: e.currentTarget.getBoundingClientRect() })} className="drink-card"
                 style={disabled ? { cursor: 'not-allowed' } : undefined} aria-disabled={disabled}>
                 <div className="drink-card-imgwrap">
                   {drink.photo ? (
@@ -2216,7 +2281,7 @@ const OrderPage = ({ cart, setCart, user, onSignIn, inStore = false }) => {
 
       {/* Drink detail drawer */}
       {selectedDrink && (
-        <DrinkCustomizer drink={selectedDrink} onClose={() => setSelectedDrink(null)} onAdd={addToCart} user={user} onSignIn={onSignIn} />
+        <DrinkCustomizer drink={selectedDrink.drink} origin={selectedDrink.origin} onClose={() => setSelectedDrink(null)} onAdd={addToCart} user={user} onSignIn={onSignIn} />
       )}
     </div>
   );
