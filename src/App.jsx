@@ -415,7 +415,7 @@ const HomePage = ({ setPage, onSignIn, user }) => {
             <div style={{ display: 'flex', gap: '24px', marginTop: '36px', flexWrap: 'wrap' }}>
               {[
                 { num: '4+', label: 'Signature Matchas' },
-                { num: '17', label: 'Crafted Drinks' },
+                { num: '16', label: 'Crafted Drinks' },
                 { num: '∞', label: 'Custom' },
               ].map(stat => (
                 <div key={stat.label}>
@@ -2127,6 +2127,13 @@ const OrderPage = ({ cart, setCart, user, onSignIn, inStore = false }) => {
                       <DrinkVisual gradient={drink.gradient} size="sm" />
                     </div>
                   )}
+                  {/* NEW sits top-left, opposite the price badge, and yields
+                      to Sold out — a drink can't usefully be both. */}
+                  {drink.isNew && !isSoldOut && (
+                    <div style={{ position: 'absolute', top: '12px', left: '12px', background: '#E8A4B8', color: '#2A1810', borderRadius: '999px', padding: '5px 13px', fontFamily: '"Outfit", sans-serif', fontSize: '10px', letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 700, boxShadow: '0 2px 8px rgba(42,24,16,0.18)' }}>
+                      New
+                    </div>
+                  )}
                   {isSoldOut ? (
                     <div style={{ position: 'absolute', top: '12px', left: '12px', background: '#A83A56', color: '#FFFEFA', borderRadius: '999px', padding: '5px 13px', fontFamily: '"Outfit", sans-serif', fontSize: '10px', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600, boxShadow: '0 2px 8px rgba(42,24,16,0.18)' }}>
                       Sold out
@@ -2139,7 +2146,7 @@ const OrderPage = ({ cart, setCart, user, onSignIn, inStore = false }) => {
                 </div>
                 <div style={{ padding: '16px 16px 18px 16px', minWidth: 0, display: 'flex', flexDirection: 'column', flex: 1 }}>
                   <h3 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '21px', color: '#2A1810', margin: '0 0 5px 0', fontWeight: 500, fontStyle: 'italic', lineHeight: 1.1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{drink.name}</h3>
-                  <p style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11.5px', color: '#5C3A21', lineHeight: 1.5, margin: '0 0 14px 0', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'break-word', minHeight: '34px' }}>{drink.desc}</p>
+                  <p style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11.5px', color: '#5C3A21', lineHeight: 1.5, margin: '0 0 14px 0', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', whiteSpace: 'normal', wordBreak: 'break-word', overflowWrap: 'break-word', height: '34px' }}>{drink.desc}</p>
                   <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
                     <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '13px', color: '#5C3A21', fontWeight: 500 }}>
                       {drink.singleSize

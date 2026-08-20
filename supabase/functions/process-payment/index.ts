@@ -46,7 +46,6 @@ const PRICES: Record<string, { L: number; B: number }> = {
   "sweet-cielo": { L: 8.00, B: 8.00 },
   "sunkissed-cielo": { L: 8.00, B: 8.00 },
   "coquetta-crush": { L: 8.00, B: 8.00 },
-  "summer-chula": { L: 8.00, B: 8.00 },
   "green-chula": { L: 8.00, B: 8.00 },
   "paraiso-fuse": { L: 8.00, B: 12.00 },
   "cremita-fuse": { L: 8.00, B: 12.00 },
