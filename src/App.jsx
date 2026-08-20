@@ -213,7 +213,7 @@ const DrinkVisual = ({ gradient, photo, size = 'md' }) => {
 // ═══════════════════════════════════════════════════════
 // NAV
 // ═══════════════════════════════════════════════════════
-const Nav = ({ page, setPage, cartCount, user, onAccount, onSignIn }) => {
+const Nav = ({ page, setPage, user, onAccount, onSignIn }) => {
   const [open, setOpen] = useState(false);
   const navItems = [
     { id: 'home', label: 'Home' },
@@ -269,42 +269,8 @@ const Nav = ({ page, setPage, cartCount, user, onAccount, onSignIn }) => {
             {user ? <><Gift size={14} /> My Card</> : <><User size={14} /> Sign In</>}
           </button>
 
-          <button
-            onClick={() => setPage('order')}
-            className="nav-cart-desktop"
-            style={{
-              alignItems: 'center', gap: '8px',
-              background: '#2A1810', color: '#FAF1E4',
-              padding: '10px 22px', borderRadius: '999px', border: 'none',
-              fontFamily: '"Outfit", sans-serif', fontSize: '13px',
-              letterSpacing: '0.1em', textTransform: 'uppercase',
-              fontWeight: 500, cursor: 'pointer', position: 'relative',
-            }}
-          >
-            <ShoppingBag size={14} />
-            Cart
-            {cartCount > 0 && (
-              <span style={{ background: '#E8A4B8', color: '#2A1810', fontSize: '11px', fontWeight: 700, width: '20px', height: '20px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {cartCount}
-              </span>
-            )}
-          </button>
-
-          {/* Mobile: cart icon + hamburger */}
+          {/* Mobile: hamburger */}
           <div className="nav-mobile-controls">
-            <button
-              onClick={() => setPage('order')}
-              data-compact
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '10px', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              aria-label="View cart"
-            >
-              <ShoppingBag size={22} color="#2A1810" />
-              {cartCount > 0 && (
-                <span style={{ position: 'absolute', top: 4, right: 2, background: '#E8A4B8', color: '#2A1810', fontSize: '10px', fontWeight: 700, minWidth: '18px', height: '18px', padding: '0 4px', borderRadius: '999px', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
-                  {cartCount}
-                </span>
-              )}
-            </button>
             <button
               onClick={() => setOpen(!open)}
               data-compact
@@ -3782,8 +3748,6 @@ export default function App() {
     }
   }, []); // eslint-disable-line
 
-  const cartCount = cart.reduce((s, i) => s + i.qty, 0);
-
   // Re-order a saved favorite: add it straight to the cart and go to order page.
   const handleReorder = (drink) => {
     const basePrice = (drink.size === 'L' ? drink.priceL : drink.priceBucket) || 0;
@@ -3882,7 +3846,7 @@ export default function App() {
 
   return (
     <div style={{ background: '#FAF1E4', minHeight: '100vh', overflowX: 'hidden', maxWidth: '100%' }}>
-      <Nav page={page} setPage={navigate} cartCount={cartCount} user={user} onAccount={goDashboard} onSignIn={() => setAuthOpen(true)} />
+      <Nav page={page} setPage={navigate} user={user} onAccount={goDashboard} onSignIn={() => setAuthOpen(true)} />
       <div className="fade-in" key={page}>
         {page === 'home' && <HomePage setPage={setPage} onSignIn={() => setAuthOpen(true)} user={user} />}
         {page === 'order' && <OrderPage cart={cart} setCart={setCart} user={user} onSignIn={() => setAuthOpen(true)} inStore={inStoreMode} />}
