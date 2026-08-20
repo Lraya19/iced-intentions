@@ -377,6 +377,61 @@ const HOME_GALLERY = [
   '/drinks/sunkissed-cielo-v2.jpeg', '/drinks/cremita-fuse.jpeg', '/drinks/verde-fuse.jpeg',
 ];
 
+// ═══════════════════════════════════════════════════════
+// NEW ARRIVAL
+// ───────────────────────────────────────────────────────
+// Reads whichever drink carries isNew rather than hardcoding one, so
+// flagging the next new drink in menu.js is the only step needed — and
+// the banner disappears by itself when nothing is flagged.
+// ═══════════════════════════════════════════════════════
+const NewArrivalBanner = ({ setPage }) => {
+  const drink = useMemo(
+    () => Object.values(MENU).flatMap(c => c.items).find(d => d.isNew),
+    [],
+  );
+  if (!drink) return null;
+
+  return (
+    <section className="section-pad-sm" style={{ background: '#FAF1E4' }}>
+      <div className="new-arrival">
+        <div className="new-arrival-photo">
+          {drink.photo
+            ? <img src={drink.photo} alt={drink.name} loading="lazy" />
+            : <div style={{ width: '100%', height: '100%', background: drink.gradient }} />}
+          <span className="new-arrival-chip">Just landed</span>
+        </div>
+
+        <div className="new-arrival-copy">
+          <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.32em', textTransform: 'uppercase', color: '#E8A4B8', fontWeight: 600 }}>
+            New Arrival
+          </span>
+          <h2 style={{ fontFamily: '"Pinyon Script", cursive', fontSize: 'clamp(44px, 7vw, 78px)', color: '#FAF1E4', margin: '6px 0 0 0', fontWeight: 400, lineHeight: 0.95 }}>
+            {drink.name}
+          </h2>
+          <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: 'clamp(17px, 2.4vw, 21px)', color: 'rgba(250,241,228,0.86)', margin: '14px 0 0 0', lineHeight: 1.5, maxWidth: '38ch' }}>
+            {drink.desc}.
+          </p>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '18px', flexWrap: 'wrap', marginTop: '26px' }}>
+            <button onClick={() => setPage('order')}
+              style={{ background: '#E8A4B8', color: '#2A1810', padding: '16px 32px', borderRadius: '999px', border: 'none', fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '9px' }}>
+              Order it now <ChevronRight size={15} />
+            </button>
+            <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '24px', color: '#FAF1E4', fontWeight: 600 }}>
+              ${drink.priceL.toFixed(2)}
+              <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.14em', textTransform: 'uppercase', opacity: 0.7, marginLeft: '8px' }}>
+                {drink.singleSize ? '32 oz' : 'Large'}
+              </span>
+            </span>
+          </div>
+        </div>
+
+        <Sparkles size={20} style={{ position: 'absolute', top: '22px', right: '26px', color: 'rgba(232,164,184,0.55)' }} />
+      </div>
+    </section>
+  );
+};
+
 const HomePage = ({ setPage, onSignIn, user }) => {
   const featured = [
     { ...MENU.matcha.items[3], category: 'Matcha' },
@@ -444,6 +499,8 @@ const HomePage = ({ setPage, onSignIn, user }) => {
           </div>
         </div>
       </section>
+
+      <NewArrivalBanner setPage={setPage} />
 
       {/* STORY */}
       <section className="section-pad" style={{ background: '#F0E2C9', position: 'relative' }}>
@@ -930,7 +987,7 @@ const DrinkCustomizer = ({ drink, origin, onClose, onAdd, user, onSignIn }) => {
 // ═══════════════════════════════════════════════════════
 // CHECKOUT FLOW
 // ═══════════════════════════════════════════════════════
-const CheckoutFlow = ({ cart, cartTotal, user, paused, inStore = false, onBack, onComplete }) => {
+const CheckoutFlow = ({ cart, cartTotal, user, paused, inStore = false, onUpdateQty, onBack, onComplete }) => {
   const [selectedDate, setSelectedDate] = useState(getUpcomingPickupDays()[0]?.iso || '');
   const [selectedTime, setSelectedTime] = useState(null);
   const [bookedSlots, setBookedSlots] = useState({});
@@ -957,6 +1014,12 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, inStore = false, onBack, 
   // ── Loyalty redemption state ──
   const [loyaltyBalance, setLoyaltyBalance] = useState(0);
   const [redeemOn, setRedeemOn] = useState(false);
+
+  // Removing the last item here would otherwise leave them staring at an
+  // empty checkout with a dead pay button.
+  useEffect(() => {
+    if (cart.length === 0) onBack();
+  }, [cart.length]); // eslint-disable-line
 
   // Fetch the signed-in customer's stamp balance when checkout opens.
   useEffect(() => {
@@ -1218,7 +1281,7 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, inStore = false, onBack, 
 
   return (
     <div style={{ background: '#FAF1E4', minHeight: '100vh', overflowX: 'hidden', maxWidth: '100%' }}>
-      <div style={{ maxWidth: '900px', margin: '0 auto', padding: '24px 20px 60px 20px', width: '100%' }}>
+      <div style={{ maxWidth: '900px', margin: '0 auto', padding: '24px 20px 150px 20px', width: '100%' }}>
         <button onClick={onBack} data-compact style={{ background: 'none', border: 'none', color: '#5C3A21', fontFamily: '"Outfit", sans-serif', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '20px', padding: '8px 0' }}>
           <ChevronLeft size={16} /> Back to menu
         </button>
@@ -1411,44 +1474,88 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, inStore = false, onBack, 
           </div>
         )}
 
-        <div style={{ background: '#F0E2C9', padding: '20px', borderRadius: '4px', marginBottom: '20px', border: '1px solid rgba(92, 58, 33, 0.12)' }}>
-          <h3 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '20px', color: '#2A1810', margin: '0 0 14px 0', fontWeight: 500 }}>Order Summary</h3>
+        {/* ── YOUR ORDER ──────────────────────────────────────
+            Item cards with the drink's own photo. Quantities are
+            editable here: making someone go back to the menu to change
+            a number is the kind of friction that loses a sale. */}
+        <div style={{ marginBottom: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: '12px' }}>
+            <h3 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '22px', color: '#2A1810', margin: 0, fontWeight: 600 }}>
+              Your order <span style={{ fontSize: '15px', color: '#5C3A21', fontWeight: 400 }}>({cart.reduce((s, i) => s + i.qty, 0)})</span>
+            </h3>
+            <button onClick={onBack} data-compact
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'transparent', border: '1.5px solid rgba(92,58,33,0.25)', borderRadius: '999px', padding: '9px 16px', fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.1em', textTransform: 'uppercase', fontWeight: 600, color: '#5C3A21', cursor: 'pointer' }}>
+              Add another <Plus size={13} />
+            </button>
+          </div>
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {cart.map(item => (
-              <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '12px' }}>
-                <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '15px', color: '#2A1810', fontStyle: 'italic' }}>
-                  {item.qty}× {item.name} <span style={{ fontSize: '12px', opacity: 0.7 }}>({item.size})</span>
-                </span>
-                <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '15px', color: '#2A1810', fontWeight: 600, flexShrink: 0 }}>${item.lineTotal.toFixed(2)}</span>
+              <div key={item.id} style={{ background: '#FFFEFA', border: '1px solid rgba(92,58,33,0.1)', borderRadius: '16px', padding: '12px', display: 'flex', alignItems: 'center', gap: '13px' }}>
+                <div style={{ flexShrink: 0, width: '68px', height: '68px', borderRadius: '12px', overflow: 'hidden', background: item.photo ? '#EDE4D3' : item.gradient }}>
+                  {item.photo && (
+                    <img src={item.photo} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                  )}
+                </div>
+
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '18px', fontStyle: 'italic', fontWeight: 600, color: '#2A1810', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {item.name}
+                  </div>
+                  <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', color: '#5C3A21', marginTop: '2px' }}>
+                    {item.sizeDisplay || sizeLabel(item.drinkId, item.size)}
+                    {item.addOns?.length > 0 && ` · ${item.addOns.map(id => ADD_ONS.find(a => a.id === id)?.name).filter(Boolean).join(', ')}`}
+                  </div>
+                  {item.notes && (
+                    <div style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '12.5px', color: '#5C3A21', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      "{item.notes}"
+                    </div>
+                  )}
+                  <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '17px', fontWeight: 600, color: '#2A1810', marginTop: '4px' }}>
+                    ${item.lineTotal.toFixed(2)}
+                  </div>
+                </div>
+
+                <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <button onClick={() => onUpdateQty(item.id, item.qty - 1)} data-compact
+                    aria-label={item.qty === 1 ? `Remove ${item.name}` : `One fewer ${item.name}`}
+                    style={{ width: '30px', height: '30px', borderRadius: '50%', border: '1.5px solid rgba(92,58,33,0.22)', background: '#FAF1E4', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {item.qty === 1 ? <Trash2 size={12} color="#A83A56" /> : <Minus size={13} color="#2A1810" />}
+                  </button>
+                  <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '18px', fontWeight: 600, color: '#2A1810', minWidth: '20px', textAlign: 'center' }}>{item.qty}</span>
+                  <button onClick={() => onUpdateQty(item.id, item.qty + 1)} data-compact aria-label={`One more ${item.name}`}
+                    style={{ width: '30px', height: '30px', borderRadius: '50%', border: '1.5px solid rgba(92,58,33,0.22)', background: '#FAF1E4', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Plus size={13} color="#2A1810" />
+                  </button>
+                </div>
               </div>
             ))}
-            {discount > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '12px', paddingTop: '4px' }}>
-                <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '15px', color: '#A83A56', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <Gift size={13} /> Free drink reward
-                </span>
-                <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '15px', color: '#A83A56', fontWeight: 600, flexShrink: 0 }}>−${discount.toFixed(2)}</span>
-              </div>
-            )}
           </div>
+        </div>
 
-          {/* Subtotal / tax breakdown */}
-          <div style={{ borderTop: '1px solid rgba(92, 58, 33, 0.15)', marginTop: '14px', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '7px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-              <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', color: '#5C3A21' }}>Subtotal</span>
-              <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '16px', color: '#2A1810' }}>${taxableTotal.toFixed(2)}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-              <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', color: '#5C3A21' }}>
-                Sales tax ({(TAX_RATE * 100).toFixed(2).replace(/\.?0+$/, '')}%)
+        {/* ── TOTALS ── */}
+        <div style={{ background: '#F0E2C9', padding: '18px 20px', borderRadius: '16px', marginBottom: '16px', border: '1px solid rgba(92, 58, 33, 0.12)' }}>
+          {discount > 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '8px' }}>
+              <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '15px', color: '#A83A56', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Gift size={13} /> Free drink reward
               </span>
-              <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '16px', color: '#2A1810' }}>${taxTotal.toFixed(2)}</span>
+              <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '15px', color: '#A83A56', fontWeight: 600 }}>−${discount.toFixed(2)}</span>
             </div>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '6px' }}>
+            <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', color: '#5C3A21' }}>Subtotal</span>
+            <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '16px', color: '#2A1810' }}>${taxableTotal.toFixed(2)}</span>
           </div>
-
-          <div style={{ borderTop: '1px solid rgba(92, 58, 33, 0.2)', marginTop: '12px', paddingTop: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+            <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', color: '#5C3A21' }}>
+              Sales tax ({(TAX_RATE * 100).toFixed(2).replace(/\.?0+$/, '')}%)
+            </span>
+            <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '16px', color: '#2A1810' }}>${taxTotal.toFixed(2)}</span>
+          </div>
+          <div style={{ borderTop: '1px solid rgba(92, 58, 33, 0.22)', marginTop: '12px', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
             <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', letterSpacing: '0.2em', textTransform: 'uppercase', color: '#5C3A21' }}>Total</span>
-            <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '28px', color: '#2A1810', fontWeight: 600 }}>${effectiveTotal.toFixed(2)}</span>
+            <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '30px', color: '#2A1810', fontWeight: 600 }}>${effectiveTotal.toFixed(2)}</span>
           </div>
         </div>
 
@@ -1469,22 +1576,36 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, inStore = false, onBack, 
           </div>
         )}
 
-        <button onClick={handleSubmit} disabled={submitDisabled}
-          style={{ width: '100%', background: submitting ? '#5C3A21' : '#2A1810', color: '#FAF1E4', padding: '18px', border: 'none', borderRadius: '999px', fontFamily: '"Outfit", sans-serif', fontSize: '13px', letterSpacing: '0.16em', textTransform: 'uppercase', fontWeight: 500, cursor: submitDisabled ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', opacity: submitDisabled && !submitting ? 0.6 : 1 }}>
-          {submitting
-            ? <><Loader2 size={16} className="spin" /> Processing...</>
-            : checkoutBlocked
-              ? <>Ordering unavailable</>
-              : isFreeOrder
-                ? <><Gift size={15} /> Place Free Order</>
-                : <><Lock size={14} /> Pay ${effectiveTotal.toFixed(2)}</>}
-        </button>
-
-        <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '13px', color: '#5C3A21', textAlign: 'center', marginTop: '14px' }}>
+        <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '13px', color: '#5C3A21', textAlign: 'center', margin: '4px 0 0 0' }}>
           {inStore
             ? "You'll get a receipt by email, and your stamp lands straight on your card."
             : "You'll get a receipt by email. We'll have your order ready right at your time."}
         </p>
+      </div>
+
+      {/* Sticky pay bar. The form runs long, so the amount and the action
+          stay in reach instead of living at the bottom of a scroll. */}
+      <div className="checkout-paybar">
+        <div className="checkout-paybar-inner">
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '10px', letterSpacing: '0.18em', textTransform: 'uppercase', color: '#5C3A21' }}>
+              Total · {cart.reduce((s, i) => s + i.qty, 0)} {cart.reduce((s, i) => s + i.qty, 0) === 1 ? 'drink' : 'drinks'}
+            </div>
+            <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '28px', fontWeight: 600, color: '#2A1810', lineHeight: 1.1 }}>
+              ${effectiveTotal.toFixed(2)}
+            </div>
+          </div>
+          <button onClick={handleSubmit} disabled={submitDisabled}
+            style={{ flex: 1, maxWidth: '340px', background: submitting ? '#5C3A21' : '#2A1810', color: '#FAF1E4', padding: '18px', border: 'none', borderRadius: '999px', fontFamily: '"Outfit", sans-serif', fontSize: '13px', letterSpacing: '0.14em', textTransform: 'uppercase', fontWeight: 600, cursor: submitDisabled ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', opacity: submitDisabled && !submitting ? 0.55 : 1, transition: 'opacity 0.2s, background 0.2s' }}>
+            {submitting
+              ? <><Loader2 size={16} className="spin" /> Processing...</>
+              : checkoutBlocked
+                ? <>Unavailable</>
+                : isFreeOrder
+                  ? <><Gift size={15} /> Place free order</>
+                  : <><Lock size={14} /> Pay ${effectiveTotal.toFixed(2)}</>}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -2116,11 +2237,22 @@ const OrderPage = ({ cart, setCart, user, onSignIn, inStore = false }) => {
 
   const removeFromCart = (id) => setCart(cart.filter(c => c.id !== id));
 
+  // Re-derive lineTotal rather than scaling it — scaling compounds any
+  // rounding already baked into the stored value.
+  const updateQty = (id, qty) => {
+    if (qty < 1) { removeFromCart(id); return; }
+    setCart(cart.map(i => {
+      if (i.id !== id) return i;
+      const addOnTotal = (i.addOns || []).reduce((s, aid) => s + (ADD_ONS.find(a => a.id === aid)?.price || 0), 0);
+      return { ...i, qty, lineTotal: round2((i.basePrice + addOnTotal) * qty) };
+    }));
+  };
+
   if (confirmation) {
     return <OrderConfirmation order={confirmation} onClose={() => { setConfirmation(null); setCart([]); }} />;
   }
   if (showCheckout) {
-    return <CheckoutFlow cart={cart} cartTotal={cartTotal} user={user} paused={paused} inStore={inStore} onBack={() => setShowCheckout(false)} onComplete={(order) => { setConfirmation(order); setShowCheckout(false); }} />;
+    return <CheckoutFlow cart={cart} cartTotal={cartTotal} user={user} paused={paused} inStore={inStore} onUpdateQty={updateQty} onBack={() => setShowCheckout(false)} onComplete={(order) => { setConfirmation(order); setShowCheckout(false); }} />;
   }
 
   return (
