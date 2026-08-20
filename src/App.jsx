@@ -339,8 +339,8 @@ const REVIEWS = [
 
 // A few real drink photos for the "follow along" gallery.
 const HOME_GALLERY = [
-  '/drinks/matcha-rosa-v2.jpeg', '/drinks/coquetta-crush-v2.jpeg', '/drinks/azulita-fuse.jpeg',
-  '/drinks/sunkissed-cielo-v2.jpeg', '/drinks/cremita-fuse.jpeg', '/drinks/verde-fuse.jpeg',
+  '/drinks/matcha-rosa-v2.jpeg', '/drinks/coquetta-crush-v2.jpeg', '/drinks/azulita-fuse-v2.jpeg',
+  '/drinks/sunkissed-cielo-v2.jpeg', '/drinks/cremita-fuse-v2.jpeg', '/drinks/verde-fuse-v2.jpeg',
 ];
 
 // ═══════════════════════════════════════════════════════
@@ -458,7 +458,7 @@ const HomePage = ({ setPage, onSignIn, user, onOrderDrink }) => {
             </div>
             {/* Back-right: Azulita Fuse */}
             <div style={{ position: 'absolute', bottom: '4%', right: '6%', transform: 'rotate(8deg)', width: 'clamp(120px, 20vw, 168px)', aspectRatio: '4 / 5', borderRadius: '16px', overflow: 'hidden', boxShadow: '0 14px 36px rgba(42,24,16,0.18)', zIndex: 1 }}>
-              <img src="/drinks/azulita-fuse.jpeg" alt="Azulita Fuse" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+              <img src="/drinks/azulita-fuse-v2.jpeg" alt="Azulita Fuse" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
             </div>
             <Sparkles size={20} style={{ position: 'absolute', top: '10%', right: '16%', color: '#E8A4B8', zIndex: 3 }} />
             <Heart size={15} style={{ position: 'absolute', bottom: '16%', left: '12%', color: '#E8A4B8', fill: '#E8A4B8', zIndex: 3 }} />
