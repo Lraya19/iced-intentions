@@ -21,14 +21,14 @@ const MENU = {
     items: [
       { id: 'matcha-verdi', photo: '/drinks/matcha-verdi.jpeg', name: 'Matcha Verdí', desc: 'Pure ceremonial-grade matcha with a kiss of vanilla', priceL: 10.50, priceBucket: 19.00, gradient: 'linear-gradient(180deg, #F5F0DC 0%, #B5C99A 50%, #6B8E4E 100%)' },
       { id: 'matcha-besitos', photo: '/drinks/matcha-besitos.jpeg', name: 'Matcha Besitos', desc: 'Cookie butter matcha with a Biscoff crumble & soft top', priceL: 10.50, priceBucket: 19.00, gradient: 'linear-gradient(180deg, #E8C896 0%, #B5C99A 40%, #6B8E4E 100%)' },
-      { id: 'matcha-blanqui', photo: '/drinks/matcha-blanqui.jpeg', name: 'Matcha Blanquí', desc: 'Banana matcha — smooth, creamy & lightly sweet', priceL: 10.50, priceBucket: 19.00, gradient: 'linear-gradient(180deg, #FFF8E7 0%, #D4DEAB 50%, #8FA968 100%)' },
+      { id: 'matcha-blanqui', photo: '/drinks/matcha-blanqui-v2.jpeg', name: 'Matcha Blanquí', desc: 'Banana matcha — smooth, creamy & lightly sweet', priceL: 10.50, priceBucket: 19.00, gradient: 'linear-gradient(180deg, #FFF8E7 0%, #D4DEAB 50%, #8FA968 100%)' },
       { id: 'matcha-rosa', photo: '/drinks/matcha-rosa.jpeg', name: 'Matcha Rosa', desc: 'Strawberry matcha — jade matcha over sweet strawberry', priceL: 10.50, priceBucket: 19.00, gradient: 'linear-gradient(180deg, #B5C99A 0%, #B5C99A 45%, #FFE4D6 60%, #C8345A 100%)' },
     ],
   },
   lattes: {
     title: 'Lattes',
     items: [
-      { id: 'dulce-moonkiss', photo: '/drinks/dulce-moon-kiss.jpeg', name: 'Dulce Moon-Kiss', desc: 'Chocolate banana, topped with imported cinnamon from El Salvador', priceL: 8.00, priceBucket: 15.00, gradient: 'linear-gradient(180deg, #F5E6D3 0%, #C8A57A 50%, #6B4423 100%)' },
+      { id: 'dulce-moonkiss', photo: '/drinks/dulce-moon-kiss-v2.jpeg', name: 'Dulce Moon-Kiss', desc: 'Chocolate banana, topped with imported cinnamon from El Salvador', priceL: 8.00, priceBucket: 15.00, gradient: 'linear-gradient(180deg, #F5E6D3 0%, #C8A57A 50%, #6B4423 100%)' },
       { id: 'mornenita-mornings', photo: '/drinks/mornenita-mornings.jpeg', name: 'Mornenita Mornings', desc: 'Cinnamon churro flavor with cinnamon-dusted foam', priceL: 8.00, priceBucket: 15.00, gradient: 'linear-gradient(180deg, #FFF1DC 0%, #E8A85C 40%, #8B5E2C 100%)' },
       { id: 'nube-blush', photo: '/drinks/nube-blush.jpeg', name: 'Nube Blush', desc: 'Vanilla caramel with a silky vanilla foam', priceL: 8.00, priceBucket: 15.00, gradient: 'linear-gradient(180deg, #FFE4E1 0%, #E8A4B8 50%, #C18298 100%)' },
       { id: 'besitos-brunette', photo: '/drinks/besitos-brunette.jpeg', name: 'Besitos Brunette', desc: 'Cookie butter latte with cookie butter cold foam', priceL: 8.00, priceBucket: 15.00, gradient: 'linear-gradient(180deg, #D4A574 0%, #8B5E2C 50%, #4A2C17 100%)' },
@@ -38,9 +38,9 @@ const MENU = {
     title: 'Refreshers',
     sizeNote: '32 oz',
     items: [
-      { id: 'sweet-cielo', photo: '/drinks/sweet-cielo.jpeg', name: 'Sweet Cielo', desc: 'Blue raspberry refresher', priceL: 8.00, priceBucket: 8.00, singleSize: true, gradient: 'linear-gradient(180deg, #CDEBFF 0%, #6FB7E8 50%, #2E7FC2 100%)' },
-      { id: 'sunkissed-cielo', photo: '/drinks/sunkissed-cielo.jpeg', name: 'SunKissed Cielo', desc: 'Mango dragonfruit refresher', priceL: 8.00, priceBucket: 8.00, singleSize: true, gradient: 'linear-gradient(180deg, #FFD8A8 0%, #E86A9E 55%, #9C2B8A 100%)' },
-      { id: 'coquetta-crush', photo: '/drinks/coquetta-crush.jpeg', name: 'Coquetta Crush', desc: 'Strawberry refresher', priceL: 8.00, priceBucket: 8.00, singleSize: true, gradient: 'linear-gradient(180deg, #FFF0F0 0%, #FFB8C8 50%, #E8557A 100%)' },
+      { id: 'sweet-cielo', photo: '/drinks/sweet-cielo-v2.jpeg', name: 'Sweet Cielo', desc: 'Blue raspberry refresher', priceL: 8.00, priceBucket: 8.00, singleSize: true, gradient: 'linear-gradient(180deg, #CDEBFF 0%, #6FB7E8 50%, #2E7FC2 100%)' },
+      { id: 'sunkissed-cielo', photo: '/drinks/sunkissed-cielo-v2.jpeg', name: 'SunKissed Cielo', desc: 'Mango dragonfruit refresher', priceL: 8.00, priceBucket: 8.00, singleSize: true, gradient: 'linear-gradient(180deg, #FFD8A8 0%, #E86A9E 55%, #9C2B8A 100%)' },
+      { id: 'coquetta-crush', photo: '/drinks/coquetta-crush-v2.jpeg', name: 'Coquetta Crush', desc: 'Strawberry refresher', priceL: 8.00, priceBucket: 8.00, singleSize: true, gradient: 'linear-gradient(180deg, #FFF0F0 0%, #FFB8C8 50%, #E8557A 100%)' },
       { id: 'summer-chula', photo: '/drinks/summer-chula.jpeg', name: 'Summer Chula', desc: 'Mango with a chamoy rim', priceL: 8.00, priceBucket: 8.00, singleSize: true, gradient: 'linear-gradient(180deg, #FFC98A 0%, #F0803C 45%, #B5322E 100%)' },
     ],
   },

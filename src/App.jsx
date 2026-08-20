@@ -373,8 +373,8 @@ const REVIEWS = [
 
 // A few real drink photos for the "follow along" gallery.
 const HOME_GALLERY = [
-  '/drinks/matcha-rosa.jpeg', '/drinks/coquetta-crush.jpeg', '/drinks/azulita-fuse.jpeg',
-  '/drinks/sunkissed-cielo.jpeg', '/drinks/cremita-fuse.jpeg', '/drinks/verde-fuse.jpeg',
+  '/drinks/matcha-rosa.jpeg', '/drinks/coquetta-crush-v2.jpeg', '/drinks/azulita-fuse.jpeg',
+  '/drinks/sunkissed-cielo-v2.jpeg', '/drinks/cremita-fuse.jpeg', '/drinks/verde-fuse.jpeg',
 ];
 
 const HomePage = ({ setPage, onSignIn, user }) => {
