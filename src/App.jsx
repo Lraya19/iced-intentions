@@ -14,7 +14,7 @@ const PosPage = lazy(() => import('./pos').then(m => ({ default: m.PosPage })));
 const KioskPage = lazy(() => import('./pos').then(m => ({ default: m.KioskPage })));
 import {
   MENU, ADD_ONS, SIZES, sizeLabel, addOnsFor, TAX_RATE, round2,
-  formatLocalDate, toDisplayTime, parseLocalDate,
+  formatLocalDate,
 } from './menu';
 import { subscribeToSlots, bookSlot, saveOrder, getPayableOrder } from './storage';
 import { sendOrderEmails } from './email';
@@ -29,7 +29,13 @@ import {
 import {
   amIAdmin, myRole, getStoreSettings, updateStoreSettings, subscribeToStoreSettings,
   getOrdersForDate, setOrderFulfilled, subscribeToOrders, getOrdersInRange,
+  DEFAULT_STORE_SETTINGS, getPickupAddress, updatePickupAddress,
 } from './admin';
+import {
+  normalizeSchedule, upcomingPickupDays, slotsFor, cutoffLabel, isOrderable,
+  hoursLabel, formatDate, displayTime, shopToday, addDays, isIsoDate, isTime, toMinutes,
+  WEEKDAY_NAMES, MAX_CUTOFF_DAYS,
+} from '../supabase/functions/_shared/pickup-schedule.js';
 
 // ═══════════════════════════════════════════════════════
 // PUBLIC BUSINESS CONFIG (read from env)
@@ -37,91 +43,47 @@ import {
 const BUSINESS = {
   name: 'Iced Intentions',
   phone: import.meta.env.VITE_BUSINESS_PHONE || '(972) 555-0142',
-  address: import.meta.env.VITE_BUSINESS_ADDRESS || '1247 Las Colinas Blvd, Irving, TX 75039',
+  // Public, city-level only. The street address is private: it's set from
+  // the owner dashboard, stored where anonymous visitors can't read it, and
+  // only handed to a customer once they've paid.
+  area: 'Bakersfield, CA',
   instagram: import.meta.env.VITE_BUSINESS_INSTAGRAM || '@iced.intentions_',
-  hours: {
-    wednesday: '6:00 – 9:00 AM',
-    friday: '6:00 – 9:00 AM',
-  },
 };
 // ═══════════════════════════════════════════════════════
 // HELPERS
 // ═══════════════════════════════════════════════════════
 
 // ── PICKUP SCHEDULE ────────────────────────────────────
-// Only these weekdays are open, each with its own hours. 15-min slots,
-// and each slot can hold up to SLOT_CAPACITY orders.
-// getDay(): 0=Sun 1=Mon 2=Tue 3=Wed 4=Thu 5=Fri 6=Sat
-const SLOT_CAPACITY = 2;
-const PICKUP_SCHEDULE = {
-  3: { start: '06:00', end: '09:00' }, // Wednesday  6:00am – 9:00am
-  5: { start: '06:00', end: '09:00' }, // Friday     6:00am – 9:00am
-};
-
-// Time slots for a given pickup date (based on that day's schedule).
-const generateTimeSlotsForDate = (iso) => {
-  if (!iso) return [];
-  const weekday = parseLocalDate(iso).getDay();
-  const cfg = PICKUP_SCHEDULE[weekday];
-  if (!cfg) return [];
-  const [sh, sm] = cfg.start.split(':').map(Number);
-  const [eh, em] = cfg.end.split(':').map(Number);
-  const startMin = sh * 60 + sm;
-  const endMin = eh * 60 + em;
-  const slots = [];
-  for (let t = startMin; t <= endMin; t += 15) {
-    const h = Math.floor(t / 60);
-    const m = t % 60;
-    slots.push({ time: `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`, display: toDisplayTime(h, m) });
-  }
-  return slots;
-};
-
-// ── ORDER CUTOFF ───────────────────────────────────────
-// Orders for a pickup day close at 7:00 PM the evening before, so the
-// day's list is final with a full evening left to prep from it.
+// Pickup days, hours, holiday openings and the order cutoff all come from
+// store_settings.pickup_schedule (edited in the owner dashboard). The rules
+// that interpret it live in supabase/functions/_shared/pickup-schedule.js,
+// shared with process-payment, which enforces the same thing server-side.
 //
-// Because pickup is only ever 6–9 AM, this also means same-day ordering
-// is never possible: by the time a pickup day starts, its cutoff passed
-// eleven hours earlier. That's intentional, not a side effect.
-const ORDER_CUTOFF_HOUR = 19;
+// Orders always close at least a day ahead, in shop (Pacific) time, so
+// same-day ordering never happens.
+const SLOT_CAPACITY = 2;
 
-// The instant ordering closes for a given pickup date.
-const cutoffForDate = (iso) => {
-  const d = parseLocalDate(iso);
-  d.setDate(d.getDate() - 1);
-  d.setHours(ORDER_CUTOFF_HOUR, 0, 0, 0);
-  return d;
+// Store settings (pause, sold-out, pickup schedule), loaded once and kept
+// live across devices. Starts from defaults so nothing renders against
+// undefined while the first read is in flight.
+const useStoreSettings = () => {
+  const [settings, setSettings] = useState(DEFAULT_STORE_SETTINGS);
+  useEffect(() => {
+    let alive = true;
+    getStoreSettings().then(s => { if (alive) setSettings(s); });
+    const unsub = subscribeToStoreSettings((s) => setSettings(s));
+    return () => { alive = false; unsub(); };
+  }, []);
+  return settings;
 };
 
-const isDateOrderable = (iso, now = new Date()) => now.getTime() < cutoffForDate(iso).getTime();
-
-// A friendly "order by …" line for a pickup date.
-const cutoffLabel = (iso) => {
-  const c = cutoffForDate(iso);
-  return `${c.toLocaleDateString('en-US', { weekday: 'long' })} at ${toDisplayTime(c.getHours(), c.getMinutes())}`;
-};
-
-// The next open pickup days (Wed/Fri), looking a few weeks ahead.
-// Days whose cutoff has passed are excluded — you can't order for them.
-const getUpcomingPickupDays = (limit = 8, now = new Date()) => {
-  const days = [];
-  for (let i = 0; i < 28 && days.length < limit; i++) {
-    const d = new Date(now);
-    d.setDate(now.getDate() + i);
-    if (!PICKUP_SCHEDULE[d.getDay()]) continue;
-    const iso = formatLocalDate(d);
-    if (!isDateOrderable(iso, now)) continue;
-    days.push({
-      iso,
-      day: d.toLocaleDateString('en-US', { weekday: 'short' }),
-      date: d.getDate(),
-      month: d.toLocaleDateString('en-US', { month: 'short' }),
-      isToday: false, // same-day ordering can't happen under the cutoff rule
-    });
-  }
-  return days;
-};
+// Bookable pickup days, shaped for the checkout's date chips.
+const pickupDayChips = (schedule, now) => upcomingPickupDays(schedule, now).map(d => ({
+  ...d,
+  day: formatDate(d.iso, { weekday: 'short' }),
+  date: Number(d.iso.slice(8)),
+  month: formatDate(d.iso, { month: 'short' }),
+}));
 
 const getNextSevenDays = () => {
   const days = [];
@@ -398,7 +360,65 @@ const NewArrivalBanner = ({ onOrderDrink }) => {
   );
 };
 
+// The Hours card on the home page, drawn from the live pickup schedule so
+// it can't fall out of step with what the checkout actually offers.
+const PickupHoursCard = ({ schedule }) => {
+  const week = [1, 2, 3, 4, 5, 6, 0]; // Monday first
+  const openDays = week.filter(d => schedule.weekdays[d]);
+  const closedDays = week.filter(d => !schedule.weekdays[d]);
+  const today = shopToday();
+  const horizon = addDays(today, 21);
+  const comingUp = schedule.specialDays.filter(s => s.date >= today && s.date <= horizon);
+  const { daysBefore, time } = schedule.cutoff;
+
+  const rows = [
+    ...openDays.map(d => ({ key: d, day: WEEKDAY_NAMES[d], hours: hoursLabel(schedule.weekdays[d]) })),
+    ...(closedDays.length ? [{ key: 'closed', day: closedDays.map(d => WEEKDAY_NAMES[d].slice(0, 3)).join(' · '), hours: 'Closed' }] : []),
+  ];
+
+  const rowStyle = { display: 'flex', justifyContent: 'space-between', borderBottom: '1px dotted rgba(92, 58, 33, 0.3)', paddingBottom: '8px', gap: '12px' };
+  return (
+    <div style={{ background: '#F0E2C9', padding: '32px', borderRadius: '4px', position: 'relative', border: '1px solid rgba(92, 58, 33, 0.12)' }}>
+      <Clock size={22} color="#2A1810" style={{ marginBottom: '12px' }} />
+      <h3 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '26px', color: '#2A1810', margin: '0 0 20px 0', fontWeight: 500 }}>Pickup hours</h3>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        {rows.map(row => (
+          <div key={row.key} style={rowStyle}>
+            <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', color: '#5C3A21', letterSpacing: '0.05em' }}>{row.day}</span>
+            <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '15px', color: '#2A1810', whiteSpace: 'nowrap' }}>{row.hours}</span>
+          </div>
+        ))}
+      </div>
+
+      {comingUp.length > 0 && (
+        <div style={{ marginTop: '22px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '7px', fontFamily: '"Outfit", sans-serif', fontSize: '10px', letterSpacing: '0.2em', textTransform: 'uppercase', color: '#A83A56', fontWeight: 600, marginBottom: '10px' }}>
+            <Sparkles size={12} /> Coming up
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {comingUp.map(s => (
+              <div key={s.date} style={rowStyle}>
+                <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', color: '#5C3A21', letterSpacing: '0.05em', minWidth: 0 }}>
+                  {formatDate(s.date, { weekday: 'short', month: 'short', day: 'numeric' })}{s.label ? ` · ${s.label}` : ''}
+                </span>
+                <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '15px', color: '#2A1810', whiteSpace: 'nowrap' }}>
+                  {s.open ? hoursLabel(s) : 'Closed'}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '14px', color: '#5C3A21', margin: '18px 0 0 0', lineHeight: 1.5 }}>
+        Pre-order pickup only. Order by {displayTime(time)} {daysBefore === 1 ? 'the day before' : `${daysBefore} days before`}.
+      </p>
+    </div>
+  );
+};
+
 const HomePage = ({ setPage, onSignIn, user, onOrderDrink }) => {
+  const { pickup_schedule: schedule } = useStoreSettings();
   const featured = [
     { ...MENU.matcha.items[3], category: 'Matcha' },
     { ...MENU.lattes.items[1], category: 'Latte' },
@@ -632,7 +652,7 @@ const HomePage = ({ setPage, onSignIn, user, onOrderDrink }) => {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
                 {[
-                  { Icon: MapPin, label: BUSINESS.address },
+                  { Icon: MapPin, label: `${BUSINESS.area} · pickup address sent with your order` },
                   { Icon: Phone, label: BUSINESS.phone },
                   { Icon: Instagram, label: BUSINESS.instagram },
                 ].map(({ Icon, label }, i) => (
@@ -646,22 +666,7 @@ const HomePage = ({ setPage, onSignIn, user, onOrderDrink }) => {
               </div>
             </div>
 
-            <div style={{ background: '#F0E2C9', padding: '32px', borderRadius: '4px', position: 'relative', border: '1px solid rgba(92, 58, 33, 0.12)' }}>
-              <Clock size={22} color="#2A1810" style={{ marginBottom: '12px' }} />
-              <h3 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '26px', color: '#2A1810', margin: '0 0 20px 0', fontWeight: 500 }}>Hours</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {[
-                  { day: 'Wednesday', hours: BUSINESS.hours.wednesday },
-                  { day: 'Friday', hours: BUSINESS.hours.friday },
-                  { day: 'Mon · Tue · Thu · Sat · Sun', hours: 'Closed' },
-                ].map(row => (
-                  <div key={row.day} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px dotted rgba(92, 58, 33, 0.3)', paddingBottom: '8px', gap: '12px' }}>
-                    <span style={{ fontFamily: '"Outfit", sans-serif', fontSize: '12px', color: '#5C3A21', letterSpacing: '0.05em' }}>{row.day}</span>
-                    <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '15px', color: '#2A1810' }}>{row.hours}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            <PickupHoursCard schedule={schedule} />
           </div>
         </div>
       </section>
@@ -964,9 +969,13 @@ const DrinkCustomizer = ({ drink, origin, onClose, onAdd, user, onSignIn }) => {
 // ═══════════════════════════════════════════════════════
 // CHECKOUT FLOW
 // ═══════════════════════════════════════════════════════
-const CheckoutFlow = ({ cart, cartTotal, user, paused, inStore = false, onUpdateQty, onBack, onComplete }) => {
-  const [selectedDate, setSelectedDate] = useState(getUpcomingPickupDays()[0]?.iso || '');
+const CheckoutFlow = ({ cart, cartTotal, user, paused, schedule, inStore = false, onUpdateQty, onBack, onComplete }) => {
+  const [selectedDate, setSelectedDate] = useState(() => upcomingPickupDays(schedule)[0]?.iso || '');
   const [selectedTime, setSelectedTime] = useState(null);
+  // Whether the customer chose the current date/time themselves, or we
+  // defaulted it. Only a choice they made is worth telling them about if it
+  // disappears; a default just quietly follows the earliest open day.
+  const choseDate = useRef(false);
   const [bookedSlots, setBookedSlots] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const [customerInfo, setCustomerInfo] = useState({
@@ -1029,19 +1038,26 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, inStore = false, onUpdate
   const effectiveTotal = round2(taxableTotal + taxTotal);
   const isFreeOrder = effectiveTotal <= 0 && (canRedeem && redeemOn);
 
-  // Recomputed on every `now` tick so a day drops off the moment its 7 PM
-  // cutoff passes, even if the customer has been sitting on this page.
-  const days = useMemo(() => getUpcomingPickupDays(8, now), [now]);
-  const allSlots = useMemo(() => generateTimeSlotsForDate(selectedDate), [selectedDate]);
+  // Recomputed on every `now` tick so a day drops off the moment its
+  // cutoff passes, even if the customer has been sitting on this page — and
+  // on every schedule change, which arrives live from the owner dashboard.
+  const days = useMemo(() => pickupDayChips(schedule, now), [schedule, now]);
+  const allSlots = useMemo(() => slotsFor(schedule, selectedDate), [schedule, selectedDate]);
+  const selectedDay = days.find(d => d.iso === selectedDate);
 
-  // If the selected day closes underneath them, move to the next open one.
+  // Keep the selection on a bookable day. If the customer's own pick closes
+  // underneath them, move them on and say so; a default just tracks the
+  // earliest open day (e.g. when a holiday opening is added).
   useEffect(() => {
     if (inStore || days.length === 0) return;
-    if (!days.some(d => d.iso === selectedDate)) {
-      setSelectedDate(days[0].iso);
-      setSelectedTime(null);
+    const stillOpen = days.some(d => d.iso === selectedDate);
+    if (stillOpen && (choseDate.current || selectedDate === days[0].iso)) return;
+    if (!stillOpen && choseDate.current) {
       setError('Ordering just closed for that day. We\'ve moved you to the next available pickup.');
     }
+    choseDate.current = false;
+    setSelectedDate(days[0].iso);
+    setSelectedTime(null);
   }, [days, selectedDate]);
 
   // Tick every 30 seconds so past slots disappear in near-real-time
@@ -1137,30 +1153,16 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, inStore = false, onUpdate
   };
   const isSlotTaken = (time) => slotCount(time) >= SLOT_CAPACITY;
 
-  // BUFFER: customer can't pick a slot less than this many minutes from now.
-  // Gives staff prep time + accounts for travel time.
-  const PICKUP_BUFFER_MINUTES = 15;
+  // Ordering always closes at least a day ahead, so a pickup day's slots
+  // are never in the past while it's still bookable — no "earliest pickup
+  // in 15 minutes" filtering needed.
 
-  // Filter slots: past times (with buffer) are hidden when selectedDate is today.
-  // For future dates, all slots show.
-  const isSelectedDateToday = selectedDate === formatLocalDate(now);
-
-  const visibleSlots = useMemo(() => {
-    if (!isSelectedDateToday) return allSlots;
-    const cutoff = new Date(now.getTime() + PICKUP_BUFFER_MINUTES * 60000);
-    const cutoffMinutes = cutoff.getHours() * 60 + cutoff.getMinutes();
-    return allSlots.filter(slot => {
-      const [h, m] = slot.time.split(':').map(Number);
-      return (h * 60 + m) > cutoffMinutes;
-    });
-  }, [allSlots, isSelectedDateToday, now]);
-
-  // If currently-selected time becomes invalid (passes or gets taken), clear it
+  // If the selected time stops existing (hours changed) or gets taken, clear it.
   useEffect(() => {
     if (!selectedTime) return;
-    const stillValid = visibleSlots.find(s => s.time === selectedTime) && !isSlotTaken(selectedTime);
+    const stillValid = allSlots.find(s => s.time === selectedTime) && !isSlotTaken(selectedTime);
     if (!stillValid) setSelectedTime(null);
-  }, [visibleSlots, selectedTime, bookedSlots]);
+  }, [allSlots, selectedTime, bookedSlots]);
 
   // Shared validation before submitting.
   const validate = () => {
@@ -1251,6 +1253,9 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, inStore = false, onUpdate
         paymentStatus: 'paid',
         squarePaymentId: result.paymentId,
         squareReceiptUrl: result.receiptUrl,
+        // Only ever sent back after a successful charge — the address isn't
+        // anywhere in the public site.
+        pickupAddress: result.pickupAddress || null,
       };
       try { await sendOrderEmails(order); } catch (e) { console.warn('Email send failed:', e); }
 
@@ -1318,21 +1323,35 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, inStore = false, onUpdate
             <h3 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '20px', color: '#2A1810', margin: 0, fontWeight: 500 }}>Pickup Date</h3>
           </div>
           <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '13px', color: '#5C3A21', margin: '0 0 14px 0' }}>
-            {selectedDate
-              ? `Orders for this day close ${cutoffLabel(selectedDate)}.`
+            {selectedDay
+              ? `Orders for this day close ${cutoffLabel(schedule, selectedDate)}.`
               : 'Ordering is closed for now — please check back soon.'}
           </p>
           <div className="h-scroll-fade on-white">
             <div className="h-scroll">
-              {days.map(d => (
-                <button key={d.iso} onClick={() => { setSelectedDate(d.iso); setSelectedTime(null); }}
-                  style={{ padding: '10px 14px', borderRadius: '4px', border: `1.5px solid ${selectedDate === d.iso ? '#2A1810' : 'rgba(92, 58, 33, 0.15)'}`, background: selectedDate === d.iso ? '#2A1810' : 'transparent', color: selectedDate === d.iso ? '#FAF1E4' : '#2A1810', cursor: 'pointer', textAlign: 'center', minWidth: '64px', transition: 'background-color 0.2s, border-color 0.2s, color 0.2s, transform 0.2s, opacity 0.2s' }}>
-                  <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '9px', letterSpacing: '0.18em', textTransform: 'uppercase', opacity: 0.8 }}>{d.day}</div>
-                  <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '20px', fontWeight: 600, lineHeight: 1, marginTop: '4px' }}>{d.date}</div>
-                  <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '9px', marginTop: '4px', opacity: 0.7 }}>{d.month}{d.isToday ? ' · Today' : ''}</div>
-                </button>
-              ))}
+              {days.map(d => {
+                const on = selectedDate === d.iso;
+                return (
+                  <button key={d.iso} onClick={() => { choseDate.current = true; setSelectedDate(d.iso); setSelectedTime(null); }}
+                    aria-label={d.label ? `${formatDate(d.iso)}, ${d.label}` : formatDate(d.iso)}
+                    style={{ position: 'relative', padding: '10px 14px', borderRadius: '4px', border: `1.5px solid ${on ? '#2A1810' : d.special ? '#E8A4B8' : 'rgba(92, 58, 33, 0.15)'}`, background: on ? '#2A1810' : 'transparent', color: on ? '#FAF1E4' : '#2A1810', cursor: 'pointer', textAlign: 'center', minWidth: '64px', transition: 'background-color 0.2s, border-color 0.2s, color 0.2s, transform 0.2s, opacity 0.2s' }}>
+                    {d.special && <Sparkles size={10} color={on ? '#E8A4B8' : '#A83A56'} style={{ position: 'absolute', top: '5px', right: '5px' }} />}
+                    <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '9px', letterSpacing: '0.18em', textTransform: 'uppercase', opacity: 0.8 }}>{d.day}</div>
+                    <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '20px', fontWeight: 600, lineHeight: 1, marginTop: '4px' }}>{d.date}</div>
+                    <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '9px', marginTop: '4px', opacity: 0.7 }}>{d.month}</div>
+                  </button>
+                );
+              })}
             </div>
+          </div>
+          {selectedDay?.special && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px', fontFamily: '"Cormorant Garamond", serif', fontSize: '15px', fontStyle: 'italic', color: '#A83A56', fontWeight: 600 }}>
+              <Sparkles size={13} /> {selectedDay.label || 'Special pickup day'}
+            </div>
+          )}
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginTop: '14px', paddingTop: '12px', borderTop: '1px solid rgba(92, 58, 33, 0.1)', fontFamily: '"Outfit", sans-serif', fontSize: '12px', color: '#5C3A21', lineHeight: 1.5 }}>
+            <MapPin size={14} style={{ flexShrink: 0, marginTop: '2px' }} />
+            Pickup is in {BUSINESS.area}. We'll share the exact address as soon as your order is placed.
           </div>
         </div>
 
@@ -1342,19 +1361,19 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, inStore = false, onUpdate
             <h3 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '20px', color: '#2A1810', margin: 0, fontWeight: 500 }}>Pickup Time</h3>
           </div>
           <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '13px', color: '#5C3A21', margin: '0 0 14px 0' }}>
-            {isSelectedDateToday
-              ? `15-minute windows · earliest pickup ${PICKUP_BUFFER_MINUTES} min from now.`
+            {selectedDay
+              ? `15-minute windows, ${hoursLabel(selectedDay)}. Taken slots disappear in real time.`
               : '15-minute windows. Taken slots disappear in real time.'}
           </p>
 
           {(() => {
-            const openSlots = visibleSlots.filter(s => !isSlotTaken(s.time));
+            const openSlots = allSlots.filter(s => !isSlotTaken(s.time));
             if (openSlots.length === 0) {
               return (
                 <p style={{ textAlign: 'center', fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', color: '#5C3A21', padding: '20px 8px', margin: 0 }}>
-                  {isSelectedDateToday
-                    ? "We're closed for new orders today. Please pick another day."
-                    : 'All time slots are booked for this day. Please pick another day.'}
+                  {selectedDay
+                    ? 'All time slots are booked for this day. Please pick another day.'
+                    : 'No pickup days are open right now. Please check back soon.'}
                 </p>
               );
             }
@@ -1364,7 +1383,7 @@ const CheckoutFlow = ({ cart, cartTotal, user, paused, inStore = false, onUpdate
                   const selected = selectedTime === slot.time;
                   const lastSpot = slotCount(slot.time) === SLOT_CAPACITY - 1;
                   return (
-                    <button key={slot.time} onClick={() => setSelectedTime(slot.time)} data-compact
+                    <button key={slot.time} onClick={() => { choseDate.current = true; setSelectedTime(slot.time); }} data-compact
                       style={{ padding: '10px 6px', borderRadius: '3px', border: `1.5px solid ${selected ? '#E8A4B8' : 'rgba(92, 58, 33, 0.15)'}`, background: selected ? '#E8A4B8' : '#FAF1E4', color: '#2A1810', fontFamily: '"Outfit", sans-serif', fontSize: '12px', fontWeight: selected ? 600 : 400, cursor: 'pointer', transition: 'background-color 0.15s, border-color 0.15s, color 0.15s, transform 0.15s, opacity 0.15s', lineHeight: 1.3 }}>
                       {slot.display}
                       {lastSpot && <span style={{ display: 'block', fontSize: '8.5px', letterSpacing: '0.08em', textTransform: 'uppercase', color: '#A83A56', marginTop: '2px' }}>1 left</span>}
@@ -1674,6 +1693,30 @@ const OrderConfirmation = ({ order, onClose }) => (
           <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '24px', color: '#2A1810', fontWeight: 600 }}>${order.total.toFixed(2)}</span>
         </div>
       </div>
+
+      {/* The pickup address is private until checkout: this screen and the
+          confirmation email are the only places a customer ever sees it. */}
+      {order.orderType === 'pickup' && (
+        <div style={{ background: '#2A1810', color: '#FAF1E4', borderRadius: '12px', padding: '18px 20px', textAlign: 'left', marginBottom: '24px', display: 'flex', alignItems: 'flex-start', gap: '13px' }}>
+          <MapPin size={20} color="#E8A4B8" style={{ flexShrink: 0, marginTop: '2px' }} />
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '10px', letterSpacing: '0.2em', textTransform: 'uppercase', opacity: 0.75, marginBottom: '4px' }}>Pickup address</div>
+            {order.pickupAddress ? (
+              <>
+                <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '19px', fontWeight: 600, lineHeight: 1.3, overflowWrap: 'anywhere' }}>{order.pickupAddress}</div>
+                <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(order.pickupAddress)}`} target="_blank" rel="noopener noreferrer"
+                  style={{ display: 'inline-block', marginTop: '8px', fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.14em', textTransform: 'uppercase', color: '#E8A4B8' }}>
+                  Open in Maps
+                </a>
+              </>
+            ) : (
+              <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '17px', fontStyle: 'italic', lineHeight: 1.4 }}>
+                It's in your confirmation email, along with your receipt.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <p style={{ fontFamily: '"Cormorant Garamond", serif', fontStyle: 'italic', fontSize: '14px', color: '#5C3A21', marginBottom: order.squareReceiptUrl ? '14px' : '24px' }}>
         {order.redeemed
@@ -2251,15 +2294,8 @@ const OrderPage = ({ cart, setCart, user, onSignIn, inStore = false, cartOpen, s
   const [activeCategory, setActiveCategory] = useState('matcha');
   const [selectedDrink, setSelectedDrink] = useState(null);
   const [confirmation, setConfirmation] = useState(null);
-  const [store, setStore] = useState({ ordering_paused: false, pause_message: '', sold_out_drinks: [] });
-
-  // Load store settings (pause + sold-out) and keep them live.
-  useEffect(() => {
-    let alive = true;
-    getStoreSettings().then(s => { if (alive) setStore(s); });
-    const unsub = subscribeToStoreSettings((s) => setStore(s));
-    return () => { alive = false; unsub(); };
-  }, []);
+  // Pause, sold-out and pickup schedule — all live.
+  const store = useStoreSettings();
 
   const paused = store.ordering_paused;
   const soldOut = store.sold_out_drinks || [];
@@ -2308,7 +2344,7 @@ const OrderPage = ({ cart, setCart, user, onSignIn, inStore = false, cartOpen, s
     return <OrderConfirmation order={confirmation} onClose={() => { setConfirmation(null); setCart([]); }} />;
   }
   if (showCheckout) {
-    return <CheckoutFlow cart={cart} cartTotal={cartTotal} user={user} paused={paused} inStore={inStore} onUpdateQty={updateQty} onBack={() => setShowCheckout(false)} onComplete={(order) => { setConfirmation(order); setShowCheckout(false); }} />;
+    return <CheckoutFlow cart={cart} cartTotal={cartTotal} user={user} paused={paused} schedule={store.pickup_schedule} inStore={inStore} onUpdateQty={updateQty} onBack={() => setShowCheckout(false)} onComplete={(order) => { setConfirmation(order); setShowCheckout(false); }} />;
   }
 
   return (
@@ -3361,6 +3397,353 @@ const SalesAnalytics = () => {
 };
 
 // ═══════════════════════════════════════════════════════════════
+// PICKUP SCHEDULE PANEL (owner only)
+// ───────────────────────────────────────────────────────────────
+// Everything that decides what customers can order for, editable without a
+// code change: the private pickup address, how far ahead orders close, the
+// weekly pickup days, and one-off days (a holiday opening, a closure).
+//
+// Schedule edits are a draft until "Save schedule", so a half-finished
+// change never reaches a customer mid-checkout. The address saves on its
+// own because it lives in a different, non-public table. RLS restricts
+// both writes to owners; process-payment enforces the saved schedule.
+// ═══════════════════════════════════════════════════════════════
+const DEFAULT_HOURS = { start: '06:00', end: '09:00' };
+const BLANK_SPECIAL = { date: '', label: '', open: true, ...DEFAULT_HOURS };
+const WEEK_MONDAY_FIRST = [1, 2, 3, 4, 5, 6, 0];
+
+const ps = {
+  section: { paddingTop: '18px', marginTop: '18px', borderTop: '1px solid rgba(92,58,33,0.1)' },
+  head: { fontFamily: '"Cormorant Garamond", serif', fontSize: '19px', fontStyle: 'italic', color: '#2A1810', fontWeight: 600 },
+  note: { fontFamily: '"Outfit", sans-serif', fontSize: '12px', color: '#5C3A21', marginTop: '2px', lineHeight: 1.5 },
+  label: { fontFamily: '"Outfit", sans-serif', fontSize: '10px', letterSpacing: '0.16em', textTransform: 'uppercase', color: '#5C3A21', display: 'block', marginBottom: '6px' },
+  input: { padding: '10px 12px', borderRadius: '8px', border: '1.5px solid rgba(92,58,33,0.2)', background: '#FAF1E4', fontFamily: '"Outfit", sans-serif', fontSize: '14px', color: '#2A1810', outline: 'none', minWidth: 0, boxSizing: 'border-box' },
+  text: { fontFamily: '"Outfit", sans-serif', fontSize: '13px', color: '#2A1810' },
+  pill: (primary, disabled) => ({
+    background: disabled ? 'rgba(92,58,33,0.15)' : primary ? '#2A1810' : 'transparent',
+    color: disabled ? '#5C3A21' : primary ? '#FAF1E4' : '#5C3A21',
+    border: primary || disabled ? '1.5px solid transparent' : '1.5px solid rgba(92,58,33,0.25)',
+    borderRadius: '999px', padding: '10px 20px', fontFamily: '"Outfit", sans-serif', fontSize: '11px',
+    letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 500, whiteSpace: 'nowrap',
+    cursor: disabled ? 'default' : 'pointer',
+  }),
+};
+
+const PickupSchedulePanel = ({ schedule, onSaved }) => {
+  // `base` is the saved schedule this draft started from; dirty = differs.
+  const [base, setBase] = useState(schedule);
+  const [draft, setDraft] = useState(schedule);
+  const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState('');
+  const [special, setSpecial] = useState(BLANK_SPECIAL);
+  const [address, setAddress] = useState('');
+  const [addressDraft, setAddressDraft] = useState('');
+  const [addressLoaded, setAddressLoaded] = useState(false);
+  const [savingAddress, setSavingAddress] = useState(false);
+
+  const today = shopToday();
+  const normalized = useMemo(() => normalizeSchedule(draft), [draft]);
+  const dirty = JSON.stringify(normalized) !== JSON.stringify(base);
+
+  // Pick up a schedule saved from another device — unless mid-edit, where
+  // clobbering someone's draft would be worse than a stale view.
+  useEffect(() => {
+    if (!dirty) { setBase(schedule); setDraft(schedule); }
+  }, [schedule]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    let alive = true;
+    getPickupAddress().then(a => {
+      if (!alive) return;
+      setAddress(a); setAddressDraft(a); setAddressLoaded(true);
+    });
+    return () => { alive = false; };
+  }, []);
+
+  const edit = (fn) => { setNotice(''); setDraft(fn); };
+  const setWeekday = (d, hours) => edit(s => {
+    const weekdays = { ...s.weekdays };
+    if (hours) weekdays[d] = hours; else delete weekdays[d];
+    return { ...s, weekdays };
+  });
+  const setCutoff = (patch) => edit(s => ({ ...s, cutoff: { ...s.cutoff, ...patch } }));
+
+  // Problems that would make normalizeSchedule silently drop something —
+  // better to block the save and say why.
+  const problems = [];
+  Object.entries(draft.weekdays).forEach(([d, h]) => {
+    if (!isTime(h.start) || !isTime(h.end)) problems.push(`${WEEKDAY_NAMES[d]}: set both pickup times.`);
+    else if (toMinutes(h.end) < toMinutes(h.start)) problems.push(`${WEEKDAY_NAMES[d]}: the last pickup is before the first.`);
+  });
+  if (!isTime(draft.cutoff.time)) problems.push('Set a time for the order cutoff.');
+
+  // ── One-off days ──
+  const specialEntry = special.open
+    ? { date: special.date, open: true, start: special.start, end: special.end, label: special.label.trim() }
+    : { date: special.date, open: false, label: special.label.trim() };
+  const specialProblem = !isIsoDate(special.date) ? 'Pick a date.'
+    : special.date < today ? 'That date has already passed.'
+    : special.open && (!isTime(special.start) || !isTime(special.end)) ? 'Set both pickup times.'
+    : special.open && toMinutes(special.end) < toMinutes(special.start) ? 'The last pickup is before the first.'
+    : '';
+  const replacing = isIsoDate(special.date) && draft.specialDays.some(d => d.date === special.date);
+
+  // What saving this day would actually mean for customers.
+  const specialHint = (() => {
+    if (specialProblem) return null;
+    const usual = normalized.weekdays[new Date(`${special.date}T12:00:00Z`).getUTCDay()];
+    if (!special.open) {
+      return usual
+        ? `No pickups that day (normally ${hoursLabel(usual)}). Orders already placed for it are not cancelled.`
+        : "That's already a day with no pickups.";
+    }
+    const withIt = normalizeSchedule({ ...normalized, specialDays: [specialEntry] });
+    return isOrderable(withIt, special.date)
+      ? `Customers can order for it until ${cutoffLabel(withIt, special.date)}.`
+      : `Heads up: orders for this date already closed (${cutoffLabel(withIt, special.date)}), so customers won't be able to book it.`;
+  })();
+
+  const addSpecial = () => {
+    if (specialProblem) return;
+    edit(s => ({
+      ...s,
+      specialDays: [...s.specialDays.filter(d => d.date !== special.date), specialEntry]
+        .sort((a, b) => a.date.localeCompare(b.date)),
+    }));
+    setSpecial(BLANK_SPECIAL);
+  };
+  const removeSpecial = (date) => edit(s => ({ ...s, specialDays: s.specialDays.filter(d => d.date !== date) }));
+  const upcomingSpecials = normalized.specialDays.filter(d => d.date >= today);
+
+  const preview = useMemo(() => pickupDayChips(normalized, new Date()).slice(0, 6), [normalized]);
+
+  const save = async () => {
+    if (problems.length) return;
+    setSaving(true);
+    try {
+      // Past one-off days have done their job; drop them so the list stays short.
+      const clean = normalizeSchedule({ ...draft, specialDays: draft.specialDays.filter(d => d.date >= today) });
+      const saved = await updateStoreSettings({ pickup_schedule: clean });
+      setBase(saved.pickup_schedule);
+      setDraft(saved.pickup_schedule);
+      onSaved(saved.pickup_schedule);
+      setNotice('Saved. The checkout is using the new schedule now.');
+    } catch (e) { alert('Could not save the schedule: ' + (e.message || 'try again')); }
+    setSaving(false);
+  };
+  const discard = () => { setDraft(base); setSpecial(BLANK_SPECIAL); setNotice(''); };
+
+  const saveAddress = async () => {
+    const next = addressDraft.trim();
+    if (!next || next === address) return;
+    setSavingAddress(true);
+    try {
+      const a = await updatePickupAddress(next);
+      setAddress(a); setAddressDraft(a);
+    } catch (e) { alert('Could not save the address: ' + (e.message || 'try again')); }
+    setSavingAddress(false);
+  };
+  const addressUnchanged = addressDraft.trim() === address || !addressDraft.trim();
+
+  return (
+    <div style={{ background: '#FFFEFA', border: '1px solid rgba(92,58,33,0.1)', borderRadius: '16px', padding: '22px', marginBottom: '24px' }}>
+      <h2 style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '24px', color: '#2A1810', margin: '0 0 4px 0', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '9px' }}>
+        <Calendar size={18} /> Pickup schedule
+      </h2>
+      <p style={{ ...ps.note, margin: 0 }}>Decides which days customers can order for. All times are Pacific.</p>
+
+      {/* ── Address ── */}
+      <div style={ps.section}>
+        <div style={ps.head}>Pickup address</div>
+        <div style={ps.note}>Private. Customers only see it after they pay, on their confirmation screen and in their email.</div>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '12px' }}>
+          <input value={addressDraft} onChange={e => setAddressDraft(e.target.value)} disabled={!addressLoaded}
+            placeholder={addressLoaded ? 'Street, city, ZIP' : 'Loading…'} aria-label="Pickup address"
+            style={{ ...ps.input, flex: 1, minWidth: '220px' }} />
+          <button onClick={saveAddress} disabled={savingAddress || addressUnchanged} style={ps.pill(true, savingAddress || addressUnchanged)}>
+            {savingAddress ? 'Saving…' : 'Save address'}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Cutoff ── */}
+      <div style={ps.section}>
+        <div style={ps.head}>Order cutoff</div>
+        <div style={ps.note}>Applies to every pickup day, holidays included. Same-day orders are never taken.</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginTop: '12px', ...ps.text }}>
+          <span>Orders close</span>
+          <select value={draft.cutoff.daysBefore} onChange={e => setCutoff({ daysBefore: Number(e.target.value) })} aria-label="Days before pickup" style={ps.input}>
+            {Array.from({ length: MAX_CUTOFF_DAYS }, (_, i) => i + 1).map(n => (
+              <option key={n} value={n}>{n === 1 ? 'the day before' : `${n} days before`}</option>
+            ))}
+          </select>
+          <span>at</span>
+          <input type="time" step="900" value={draft.cutoff.time} onChange={e => setCutoff({ time: e.target.value })} aria-label="Cutoff time" style={ps.input} />
+        </div>
+      </div>
+
+      {/* ── Weekly ── */}
+      <div style={ps.section}>
+        <div style={ps.head}>Weekly pickup days</div>
+        <div style={ps.note}>Tap a day to turn pickups on or off. Pickup windows run every 15 minutes from the first time to the last.</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
+          {WEEK_MONDAY_FIRST.map(d => {
+            const h = draft.weekdays[d];
+            return (
+              <div key={d} style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', padding: '8px 12px', borderRadius: '10px', border: `1.5px solid ${h ? 'rgba(42,24,16,0.55)' : 'rgba(92,58,33,0.15)'}`, background: h ? '#FAF1E4' : 'transparent' }}>
+                <button onClick={() => setWeekday(d, h ? null : DEFAULT_HOURS)} aria-pressed={!!h} data-compact
+                  style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'none', border: 'none', padding: '6px 0', cursor: 'pointer', minWidth: '130px' }}>
+                  <span style={{ width: '18px', height: '18px', borderRadius: '5px', border: `1.5px solid ${h ? '#2A1810' : 'rgba(92,58,33,0.35)'}`, background: h ? '#2A1810' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    {h && <Check size={12} color="#FAF1E4" />}
+                  </span>
+                  <span style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '17px', fontWeight: 600, color: h ? '#2A1810' : '#5C3A21' }}>{WEEKDAY_NAMES[d]}</span>
+                </button>
+                {h ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: 'auto', ...ps.text }}>
+                    <input type="time" step="900" value={h.start} onChange={e => setWeekday(d, { ...h, start: e.target.value })} aria-label={`${WEEKDAY_NAMES[d]} first pickup`} style={{ ...ps.input, padding: '7px 9px' }} />
+                    <span>to</span>
+                    <input type="time" step="900" value={h.end} onChange={e => setWeekday(d, { ...h, end: e.target.value })} aria-label={`${WEEKDAY_NAMES[d]} last pickup`} style={{ ...ps.input, padding: '7px 9px' }} />
+                  </div>
+                ) : (
+                  <span style={{ ...ps.note, marginTop: 0, marginLeft: 'auto' }}>No pickups</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ── One-off days ── */}
+      <div style={ps.section}>
+        <div style={ps.head}>Holidays & special days</div>
+        <div style={ps.note}>
+          Open a day you're normally closed (a holiday sale), change one day's hours, or close a normal pickup day.
+          It only affects that one date, and it drops off on its own once the date has passed.
+        </div>
+
+        {upcomingSpecials.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px' }}>
+            {upcomingSpecials.map(d => (
+              <div key={d.date} style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', padding: '12px 14px', borderRadius: '10px', background: d.open ? 'rgba(232,164,184,0.14)' : 'rgba(92,58,33,0.07)', border: `1.5px solid ${d.open ? 'rgba(232,164,184,0.6)' : 'rgba(92,58,33,0.15)'}` }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '17px', fontWeight: 600, color: '#2A1810' }}>
+                    {formatDate(d.date, { weekday: 'short', month: 'short', day: 'numeric' })}{d.label ? ` · ${d.label}` : ''}
+                    {!base.specialDays.some(b => JSON.stringify(b) === JSON.stringify(d)) && (
+                      <span style={{ marginLeft: '8px', fontFamily: '"Outfit", sans-serif', fontSize: '9px', letterSpacing: '0.12em', textTransform: 'uppercase', color: '#A83A56', fontWeight: 600 }}>Unsaved</span>
+                    )}
+                  </div>
+                  <div style={{ ...ps.note, marginTop: '1px' }}>
+                    {d.open
+                      ? `Open ${hoursLabel(d)} · orders close ${cutoffLabel(normalized, d.date)}`
+                      : 'Closed, no pickups'}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <button onClick={() => setSpecial({ ...BLANK_SPECIAL, ...d, label: d.label || '' })} data-compact style={{ ...ps.pill(false, false), padding: '7px 14px' }}>Edit</button>
+                  <button onClick={() => removeSpecial(d.date)} data-compact aria-label={`Remove ${formatDate(d.date)}`}
+                    style={{ ...ps.pill(false, false), padding: '7px 11px', display: 'flex', alignItems: 'center' }}>
+                    <Trash2 size={13} color="#A83A56" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div style={{ marginTop: '14px', padding: '14px', borderRadius: '12px', border: '1.5px dashed rgba(92,58,33,0.25)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '10px' }}>
+            <div>
+              <label style={ps.label} htmlFor="ps-special-date">Date</label>
+              <input id="ps-special-date" type="date" min={today} value={special.date} onChange={e => setSpecial(sp => ({ ...sp, date: e.target.value }))} style={{ ...ps.input, width: '100%' }} />
+            </div>
+            <div>
+              <label style={ps.label} htmlFor="ps-special-label">Name (shown to customers)</label>
+              <input id="ps-special-label" value={special.label} maxLength={60} onChange={e => setSpecial(sp => ({ ...sp, label: e.target.value }))} placeholder="e.g. Thanksgiving Day" style={{ ...ps.input, width: '100%' }} />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', marginTop: '12px' }}>
+            <div role="radiogroup" aria-label="Open or closed" style={{ display: 'inline-flex', borderRadius: '999px', border: '1.5px solid rgba(92,58,33,0.25)', overflow: 'hidden' }}>
+              {[{ v: true, t: 'Open for pickup' }, { v: false, t: 'Closed' }].map(o => (
+                <button key={String(o.v)} role="radio" aria-checked={special.open === o.v} onClick={() => setSpecial(sp => ({ ...sp, open: o.v }))} data-compact
+                  style={{ background: special.open === o.v ? '#2A1810' : 'transparent', color: special.open === o.v ? '#FAF1E4' : '#5C3A21', border: 'none', padding: '8px 14px', fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.08em', textTransform: 'uppercase', cursor: 'pointer' }}>
+                  {o.t}
+                </button>
+              ))}
+            </div>
+            {special.open && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', ...ps.text }}>
+                <input type="time" step="900" value={special.start} onChange={e => setSpecial(sp => ({ ...sp, start: e.target.value }))} aria-label="First pickup" style={{ ...ps.input, padding: '7px 9px' }} />
+                <span>to</span>
+                <input type="time" step="900" value={special.end} onChange={e => setSpecial(sp => ({ ...sp, end: e.target.value }))} aria-label="Last pickup" style={{ ...ps.input, padding: '7px 9px' }} />
+              </div>
+            )}
+          </div>
+
+          {(specialHint || (special.date && specialProblem)) && (
+            <div style={{ ...ps.note, marginTop: '10px', color: specialProblem || specialHint?.startsWith('Heads up') ? '#A83A56' : '#5C3A21' }}>
+              {specialProblem || specialHint}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
+            <button onClick={addSpecial} disabled={!!specialProblem} style={{ ...ps.pill(true, !!specialProblem), display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              {replacing ? <><Check size={13} /> Update day</> : <><Plus size={13} /> Add day</>}
+            </button>
+            {(special.date || special.label) && (
+              <button onClick={() => setSpecial(BLANK_SPECIAL)} style={ps.pill(false, false)}>Clear</button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Preview ── */}
+      <div style={ps.section}>
+        <div style={ps.head}>What customers can book{dirty ? ' (with your unsaved changes)' : ''}</div>
+        {preview.length === 0 ? (
+          <div style={{ ...ps.note, color: '#A83A56', marginTop: '8px' }}>Nothing. No pickup day is open in the next four weeks, so checkout is closed.</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '10px' }}>
+            {preview.map(d => (
+              <div key={d.iso} style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', ...ps.text, paddingBottom: '6px', borderBottom: '1px dotted rgba(92,58,33,0.25)' }}>
+                <span style={{ fontWeight: 500 }}>
+                  {formatDate(d.iso, { weekday: 'short', month: 'short', day: 'numeric' })}
+                  {d.special && <span style={{ color: '#A83A56' }}> · {d.label || 'Special day'}</span>}
+                  <span style={{ color: '#5C3A21', fontWeight: 400 }}> · {hoursLabel(d)}</span>
+                </span>
+                <span style={{ color: '#5C3A21', fontSize: '12px' }}>orders close {cutoffLabel(normalized, d.iso)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Save ── */}
+      {dirty ? (
+        <div style={{ ...ps.section, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.14em', textTransform: 'uppercase', color: '#A83A56', fontWeight: 600 }}>Unsaved changes</div>
+            {problems.length > 0
+              ? problems.map(p => <div key={p} style={{ ...ps.note, color: '#A83A56' }}>{p}</div>)
+              : <div style={ps.note}>Customers still see the old schedule until you save.</div>}
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button onClick={discard} disabled={saving} style={ps.pill(false, false)}>Discard</button>
+            <button onClick={save} disabled={saving || problems.length > 0} style={ps.pill(true, saving || problems.length > 0)}>
+              {saving ? 'Saving…' : 'Save schedule'}
+            </button>
+          </div>
+        </div>
+      ) : notice ? (
+        <div style={{ ...ps.section, display: 'flex', alignItems: 'center', gap: '8px', fontFamily: '"Outfit", sans-serif', fontSize: '13px', color: '#3D7A4F' }}>
+          <CheckCircle2 size={15} /> {notice}
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
+// ═══════════════════════════════════════════════════════════════
 // OWNER DASHBOARD (admin only)
 // ═══════════════════════════════════════════════════════════════
 const OwnerDashboard = ({ user, setPage, role }) => {
@@ -3370,7 +3753,8 @@ const OwnerDashboard = ({ user, setPage, role }) => {
   const [dateIso, setDateIso] = useState(formatLocalDate(new Date()));
   const [orders, setOrders] = useState([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
-  const [settings, setSettings] = useState({ ordering_paused: false, pause_message: '', sold_out_drinks: [] });
+  const [settings, setSettings] = useState(DEFAULT_STORE_SETTINGS);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   const [pauseMsgDraft, setPauseMsgDraft] = useState('');
   const [savingPause, setSavingPause] = useState(false);
   const [savingDrink, setSavingDrink] = useState(null);
@@ -3393,7 +3777,7 @@ const OwnerDashboard = ({ user, setPage, role }) => {
       if (ok) {
         const s = await getStoreSettings();
         if (!alive) return;
-        setSettings(s); setPauseMsgDraft(s.pause_message);
+        setSettings(s); setPauseMsgDraft(s.pause_message); setSettingsLoaded(true);
       }
     })();
     return () => { alive = false; };
@@ -3540,6 +3924,12 @@ const OwnerDashboard = ({ user, setPage, role }) => {
             </div>
           </div>
         </div>
+
+        {/* ── PICKUP SCHEDULE ── */}
+        {settingsLoaded && (
+          <PickupSchedulePanel schedule={settings.pickup_schedule}
+            onSaved={(pickup_schedule) => setSettings(s => ({ ...s, pickup_schedule }))} />
+        )}
 
         {/* ── SOLD OUT ── */}
         <div style={{ background: '#FFFEFA', border: '1px solid rgba(92,58,33,0.1)', borderRadius: '16px', padding: '22px', marginBottom: '32px' }}>
@@ -3700,7 +4090,7 @@ const Footer = ({ setPage }) => (
         <div>
           <h5 style={{ fontFamily: '"Outfit", sans-serif', fontSize: '11px', letterSpacing: '0.25em', textTransform: 'uppercase', margin: '0 0 12px 0', opacity: 0.7 }}>Find Us</h5>
           <div style={{ fontFamily: '"Cormorant Garamond", serif', fontSize: '15px', lineHeight: 1.9 }}>
-            <div>{BUSINESS.address}</div>
+            <div>{BUSINESS.area}</div>
             <div>{BUSINESS.phone}</div>
             <div>{BUSINESS.instagram}</div>
           </div>

@@ -3,12 +3,13 @@
 // ───────────────────────────────────────────────────────────────
 // Powers the owner dashboard: checking admin status, reading the
 // day's orders, marking orders fulfilled, and controlling the
-// storefront (pause ordering + per-drink sold-out). Every write is
+// storefront (pause ordering, per-drink sold-out, pickup schedule). Every write is
 // gated by Row-Level Security — only an email in `admin_emails` can
 // change orders or store_settings. The browser cannot self-promote.
 // ═══════════════════════════════════════════════════════════════
 
 import { supabase, isSupabaseConfigured } from './supabase';
+import { normalizeSchedule } from '../supabase/functions/_shared/pickup-schedule.js';
 
 // Is the signed-in user staff at all (owner OR employee)? Calls the
 // SECURITY DEFINER am_i_admin(), which checks their email against the
@@ -57,39 +58,50 @@ export async function settleCash(orderId, cashReceived) {
   return row || null;
 }
 
-// ── Store settings (pause + sold-out) ──
+// ── Store settings (pause + sold-out + pickup schedule) ──
+
+const SETTINGS_COLUMNS = 'ordering_paused, pause_message, sold_out_drinks, pickup_schedule';
+
+// One mapping for every place a store_settings row comes in (read, write,
+// realtime), so the schedule is always normalised the same way.
+function toSettings(row) {
+  const r = row || {};
+  return {
+    ordering_paused: !!r.ordering_paused,
+    pause_message: r.pause_message || '',
+    sold_out_drinks: Array.isArray(r.sold_out_drinks) ? r.sold_out_drinks : [],
+    pickup_schedule: normalizeSchedule(r.pickup_schedule),
+  };
+}
+
+export const DEFAULT_STORE_SETTINGS = toSettings(null);
 
 export async function getStoreSettings() {
-  if (!isSupabaseConfigured) {
-    return { ordering_paused: false, pause_message: '', sold_out_drinks: [] };
-  }
+  if (!isSupabaseConfigured) return DEFAULT_STORE_SETTINGS;
   const { data, error } = await supabase
     .from('store_settings')
-    .select('ordering_paused, pause_message, sold_out_drinks')
+    .select(SETTINGS_COLUMNS)
     .eq('id', 1)
     .single();
   if (error) {
     console.warn('store settings read failed:', error.message);
-    return { ordering_paused: false, pause_message: '', sold_out_drinks: [] };
+    return DEFAULT_STORE_SETTINGS;
   }
-  return {
-    ordering_paused: !!data.ordering_paused,
-    pause_message: data.pause_message || '',
-    sold_out_drinks: Array.isArray(data.sold_out_drinks) ? data.sold_out_drinks : [],
-  };
+  return toSettings(data);
 }
 
-// Patch store settings (admin only; RLS enforces it). Returns the saved row.
+// Patch store settings (owner only; RLS enforces it). Returns the saved
+// settings, normalised.
 export async function updateStoreSettings(patch) {
   if (!isSupabaseConfigured) throw new Error('Not configured');
   const { data, error } = await supabase
     .from('store_settings')
     .update({ ...patch, updated_at: new Date().toISOString() })
     .eq('id', 1)
-    .select('ordering_paused, pause_message, sold_out_drinks')
+    .select(SETTINGS_COLUMNS)
     .single();
   if (error) throw error;
-  return data;
+  return toSettings(data);
 }
 
 // Live updates: fire `cb` whenever store settings change (any device).
@@ -98,15 +110,38 @@ export function subscribeToStoreSettings(cb) {
   const channel = supabase
     .channel('store_settings_changes')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'store_settings' }, (payload) => {
-      const row = payload.new || {};
-      cb({
-        ordering_paused: !!row.ordering_paused,
-        pause_message: row.pause_message || '',
-        sold_out_drinks: Array.isArray(row.sold_out_drinks) ? row.sold_out_drinks : [],
-      });
+      cb(toSettings(payload.new));
     })
     .subscribe();
   return () => { try { supabase.removeChannel(channel); } catch (e) { /* noop */ } };
+}
+
+// ── Pickup address (private) ──
+// Not on store_settings, which anyone can read: customers only get the
+// address once they've paid (process-payment returns it, send-email puts it
+// in the confirmation). Staff can read it here; only owners can change it.
+
+export async function getPickupAddress() {
+  if (!isSupabaseConfigured) return '';
+  const { data, error } = await supabase
+    .from('private_settings')
+    .select('pickup_address')
+    .eq('id', 1)
+    .maybeSingle();
+  if (error) { console.warn('pickup address read failed:', error.message); return ''; }
+  return data?.pickup_address || '';
+}
+
+export async function updatePickupAddress(address) {
+  if (!isSupabaseConfigured) throw new Error('Not configured');
+  const { data, error } = await supabase
+    .from('private_settings')
+    .update({ pickup_address: address, updated_at: new Date().toISOString() })
+    .eq('id', 1)
+    .select('pickup_address')
+    .single();
+  if (error) throw error;
+  return data?.pickup_address || '';
 }
 
 // ── Orders (admin reads ALL via the orders_admin_all policy) ──

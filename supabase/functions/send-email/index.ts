@@ -90,7 +90,7 @@ async function sendViaResend(apiKey: string, from: string, m: Message) {
 
 // ── Message composition ────────────────────────────────────────
 
-function orderMessages(order: any, ownerEmail: string): Message[] {
+function orderMessages(order: any, ownerEmail: string, pickupAddress: string | null): Message[] {
   const items = (order.items ?? []) as any[];
   const itemLines = items.map((i) => {
     const size = i.sizeDisplay || (i.size === "L" ? "Large" : "Bucket");
@@ -146,6 +146,9 @@ function orderMessages(order: any, ownerEmail: string): Message[] {
         "Your order is in and we'll have it ready right at your pickup time.",
         "",
         `PICKUP: ${order.pickup_date} at ${order.pickup_time_display || order.pickup_time}`,
+        // The address is private until checkout; this email and the
+        // confirmation screen are the only places a customer gets it.
+        pickupAddress ? `WHERE:  ${pickupAddress}` : null,
         `ORDER:  ${shortId}`,
         "",
         itemLines,
@@ -228,7 +231,19 @@ Deno.serve(async (req: Request) => {
       return json({ ok: true, alreadySent: true }, 200);
     }
 
-    const messages = orderMessages(row, OWNER_EMAIL);
+    // In-store orders are made there and then; only pickups need directions.
+    let pickupAddress: string | null = null;
+    if ((row.order_type ?? "pickup") === "pickup") {
+      const { data: priv, error: privErr } = await supabase
+        .from("private_settings")
+        .select("pickup_address")
+        .eq("id", 1)
+        .maybeSingle();
+      if (privErr) console.error("Pickup address lookup failed:", privErr.message);
+      pickupAddress = priv?.pickup_address || null;
+    }
+
+    const messages = orderMessages(row, OWNER_EMAIL, pickupAddress);
 
     // One failure must not suppress the others — the owner's ticket matters
     // even if the customer's address bounces.

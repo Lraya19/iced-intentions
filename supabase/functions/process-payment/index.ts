@@ -15,11 +15,21 @@
 // order row, so a declined card doesn't silently eat one of the two spots
 // for that time.
 //
+// The pickup address is returned only on a successful charge.
+//
 // Deploy:  supabase functions deploy process-payment
 // Secrets: SQUARE_ACCESS_TOKEN, SQUARE_LOCATION_ID, SQUARE_ENV
 // ═══════════════════════════════════════════════════════════════
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import {
+  cutoffLabel,
+  formatDate,
+  hoursFor,
+  isOrderable,
+  isValidPickup,
+  normalizeSchedule,
+} from "../_shared/pickup-schedule.js";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -33,7 +43,7 @@ const SQUARE_HOSTS = {
   production: "https://connect.squareup.com",
 };
 
-// ── Authoritative price list. Must match MENU in src/App.jsx. ──
+// ── Authoritative price list. Must match MENU in src/menu.js. ──
 const PRICES: Record<string, { L: number; B: number }> = {
   "matcha-verdi": { L: 10.50, B: 19.00 },
   "matcha-besitos": { L: 10.50, B: 19.00 },
@@ -53,7 +63,7 @@ const PRICES: Record<string, { L: number; B: number }> = {
   "verde-fuse": { L: 8.00, B: 12.00 },
 };
 
-// Must match ADD_ONS in src/App.jsx.
+// Must match ADD_ONS in src/menu.js.
 const ADD_ON_PRICES: Record<string, number> = {
   "oatmilk": 0.75,
   "extra-shot": 0.75,
@@ -67,52 +77,18 @@ const MAX_LINES = 40;
 // Bakersfield, CA: 7.25% state + 1.00% district. Charged on the
 // POST-discount amount — a loyalty reward is a retailer-funded discount,
 // which reduces taxable gross receipts, so it reduces the tax too.
-// Must match TAX_RATE in src/App.jsx.
+// Must match TAX_RATE in src/menu.js.
 const TAX_RATE = 0.0825;
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
-// ── Order cutoff ───────────────────────────────────────────────
-// Orders for a pickup day close at 7:00 PM the evening before. Enforced
-// here as well as in the UI — a cutoff that only exists in the browser is
-// not a cutoff. Edge Functions run in UTC, so all comparisons are done
-// against wall-clock time in the shop's own timezone.
-const BUSINESS_TZ = "America/Los_Angeles";
-const ORDER_CUTOFF_HOUR = 19;
-
-function nowInBusinessTz(): { date: string; minutes: number } {
-  const parts = Object.fromEntries(
-    new Intl.DateTimeFormat("en-CA", {
-      timeZone: BUSINESS_TZ,
-      year: "numeric", month: "2-digit", day: "2-digit",
-      hour: "2-digit", minute: "2-digit", hour12: false,
-    }).formatToParts(new Date()).map((p) => [p.type, p.value]),
-  );
-  // Some runtimes render midnight as "24" rather than "00".
-  const hour = Number(parts.hour) % 24;
-  return {
-    date: `${parts.year}-${parts.month}-${parts.day}`,
-    minutes: hour * 60 + Number(parts.minute),
-  };
-}
-
-// The calendar day before an ISO date. Date-only UTC arithmetic, so no
-// daylight-saving drift.
-function previousDay(iso: string): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  const dt = new Date(Date.UTC(y, m - 1, d));
-  dt.setUTCDate(dt.getUTCDate() - 1);
-  return dt.toISOString().slice(0, 10);
-}
-
-function isPickupDateOrderable(pickupIso: string): boolean {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(pickupIso)) return false;
-  const cutoffDay = previousDay(pickupIso);
-  const now = nowInBusinessTz();
-  if (now.date < cutoffDay) return true;                                  // more than a day out
-  if (now.date === cutoffDay) return now.minutes < ORDER_CUTOFF_HOUR * 60; // cutoff evening
-  return false;                                                            // cutoff has passed
-}
+// ── Pickup schedule ────────────────────────────────────────────
+// Which days are open, their hours and the order cutoff are owner-edited
+// in store_settings.pickup_schedule. The rules that read it are shared
+// with the checkout (../_shared/pickup-schedule.js), so what the browser
+// offers and what this function accepts are the same thing by
+// construction. Enforced here because a cutoff that only exists in the
+// browser is not a cutoff.
 
 interface CartItem {
   drinkId: string;
@@ -264,14 +240,38 @@ Deno.serve(async (req: Request) => {
       pickupTime = orderRow.pickup_time ?? body.pickupTime ?? null;
     }
 
-    // ── Cutoff: no ordering for a day once 7 PM the evening before passes. ──
+    // ── Schedule: an open pickup day, a real slot on it, before its cutoff. ──
     // Doesn't apply in store: there's no pickup slot to protect and the
     // customer is already at the counter.
-    if (!isInStore && (!pickupDate || !isPickupDateOrderable(pickupDate))) {
-      await rollback(orderId, pickupDate, pickupTime);
-      return json({
-        error: "Ordering has closed for that pickup day. Orders must be placed by 7:00 PM the evening before.",
-      }, 400);
+    if (!isInStore) {
+      const { data: settings, error: settingsErr } = await supabase
+        .from("store_settings")
+        .select("pickup_schedule")
+        .eq("id", 1)
+        .maybeSingle();
+      if (settingsErr || !settings) {
+        // Fail closed: guessing at the schedule could take an order for a
+        // day the owner has closed.
+        console.error("Schedule lookup failed:", settingsErr?.message);
+        await rollback(orderId, pickupDate, pickupTime);
+        return json({ error: "We couldn't confirm the pickup schedule. Please try again." }, 503);
+      }
+      const schedule = normalizeSchedule(settings.pickup_schedule);
+
+      if (!pickupDate || !hoursFor(schedule, pickupDate)) {
+        await rollback(orderId, pickupDate, pickupTime);
+        return json({ error: "That isn't a pickup day. Please choose another day." }, 400);
+      }
+      if (!isOrderable(schedule, pickupDate)) {
+        await rollback(orderId, pickupDate, pickupTime);
+        return json({
+          error: `Ordering has closed for ${formatDate(pickupDate)}. Orders for that day had to be placed by ${cutoffLabel(schedule, pickupDate)}.`,
+        }, 400);
+      }
+      if (!pickupTime || !isValidPickup(schedule, pickupDate, pickupTime)) {
+        await rollback(orderId, pickupDate, pickupTime);
+        return json({ error: "That pickup time isn't available. Please choose another." }, 400);
+      }
     }
 
     // ── Re-price the cart ourselves. The client's numbers are display-only. ──
@@ -387,6 +387,21 @@ Deno.serve(async (req: Request) => {
       console.error("Order update after successful payment failed:", updateErr.message, { orderId, paymentId });
     }
 
+    // The pickup address is only revealed once the order is paid for. It's
+    // in a table the public can't read, so this is the only way out to a
+    // customer (besides their confirmation email). A failed lookup doesn't
+    // fail the order — the email carries it too.
+    let pickupAddress: string | null = null;
+    if (!isInStore) {
+      const { data: priv, error: privErr } = await supabase
+        .from("private_settings")
+        .select("pickup_address")
+        .eq("id", 1)
+        .maybeSingle();
+      if (privErr) console.error("Pickup address lookup failed:", privErr.message);
+      pickupAddress = priv?.pickup_address || null;
+    }
+
     if (userId) {
       try {
         if (redeeming) {
@@ -412,6 +427,7 @@ Deno.serve(async (req: Request) => {
       tax,
       taxRate: TAX_RATE,
       redeemed: redeeming,
+      pickupAddress,
     }, 200);
   } catch (err) {
     console.error("Unexpected error in process-payment:", err);
